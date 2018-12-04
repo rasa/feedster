@@ -1,9 +1,14 @@
 # Set an output prefix, which is the local directory if not specified
 ifneq ($(OS),Windows_NT)
+FIND?=find
 PREFIX?=$(shell pwd)
+STDERR=/dev/stderr
 else
-PREFIX?=$(shell cygpath -a -m .)
 EXE_EXT=.exe
+WFIND?=$(shell where find | grep -iv "$(SYSTEMROOT)" | head -n 1)
+FIND?=$(shell cygpath -a -m "$(WFIND)")
+PREFIX?=$(shell cygpath -a -m .)
+STDERR=
 endif
 
 # Set the build dir, where built cross-compiled binaries will be output
@@ -11,7 +16,7 @@ BUILDDIR := ${PREFIX}/cross
 
 # Populate version variables
 # Add to compile time flags
-VERSION := $(shell cat VERSION.txt)
+VERSION := $(file <VERSION.txt)
 GITCOMMIT := $(shell git rev-parse --short HEAD)
 GITUNTRACKEDCHANGES := $(shell git status --porcelain --untracked-files=no)
 ifneq ($(GITUNTRACKEDCHANGES),)
@@ -61,12 +66,12 @@ all: clean build fmt lint test staticcheck vet install ## Runs a clean, build, f
 .PHONY: fmt
 fmt: ## Verifies all files have been `gofmt`ed.
 	@echo "+ $@"
-	@gofmt -s -l . | grep -v '.pb.go:' | grep -v vendor | tee /dev/stderr
+	@gofmt -s -l . | grep -E -v '(\.pb\.go:|vendor)' | tee $(STDERR)
 
 .PHONY: lint
 lint: ## Verifies `golint` passes.
 	@echo "+ $@"
-	@golint ./... | grep -v '.pb.go:' | grep -v vendor | tee /dev/stderr
+	@golint ./... | grep -E -v '(\.pb\.go:|vendor)' | tee $(STDERR)
 
 .PHONY: test
 test: prebuild ## Runs the go tests.
@@ -76,12 +81,12 @@ test: prebuild ## Runs the go tests.
 .PHONY: vet
 vet: ## Verifies `go vet` passes.
 	@echo "+ $@"
-	@$(GO) vet $(shell $(GO) list ./... | grep -v vendor) | grep -v '.pb.go:' | tee /dev/stderr
+	@$(GO) vet $(shell $(GO) list ./... | grep -E -v '(\.pb\.go:|vendor)') | tee $(STDERR)
 
 .PHONY: staticcheck
 staticcheck: ## Verifies `staticcheck` passes.
 	@echo "+ $@"
-	@staticcheck $(shell $(GO) list ./... | grep -v vendor) | grep -v '.pb.go:' | tee /dev/stderr
+	@staticcheck $(shell $(GO) list ./... | grep -E -v '(\.pb\.go:|vendor)') | tee $(STDERR)
 
 .PHONY: cover
 cover: prebuild ## Runs go test with coverage.
@@ -180,8 +185,8 @@ clean: ## Cleanup any build binaries or packages.
 .PHONY: gofmt
 gofmt: ## Format all .go files via `gofmt -s` (simplify)
 	@echo "+ $@"
-	@gofmt -s -l . | grep -v '.pb.go:' | grep -v vendor
-	find . -iname '*.go' ! -ipath './vendor/*' | xargs gofmt -s -w
+	@gofmt -s -l . | grep -E -v '(\.pb\.go:|vendor)' || true
+	$(FIND) . -iname '*.go' ! -ipath './vendor/*' | xargs gofmt -s -w
 
 .PHONY: mailmap
 mailmap: ## Generate committer list to add to .mailmap
