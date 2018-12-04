@@ -9,6 +9,9 @@ import (
 	"strings"
 
 	"github.com/rasa/feedster/version"
+	_ "github.com/bogem/id3v2"
+    _ "github.com/gocarina/gocsv"
+	
 )
 
 func main() {
