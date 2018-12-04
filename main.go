@@ -1,4 +1,4 @@
-// Program go-template prints the version and exits
+// Program feedster prints the version and exits
 package main
 
 import (
@@ -8,7 +8,7 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/rasa/go-template/version"
+	"github.com/rasa/feedster/version"
 )
 
 func main() {

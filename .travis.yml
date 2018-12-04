@@ -18,39 +18,39 @@ jobs:
       deploy:
         provider: releases
         file:
-          - cross/go-template-darwin-amd64
-          - cross/go-template-darwin-amd64.md5
-          - cross/go-template-darwin-amd64.sha256
-          - cross/go-template-darwin-386
-          - cross/go-template-darwin-386.md5
-          - cross/go-template-darwin-386.sha256
-          - cross/go-template-freebsd-amd64
-          - cross/go-template-freebsd-amd64.md5
-          - cross/go-template-freebsd-amd64.sha256
-          - cross/go-template-freebsd-386
-          - cross/go-template-freebsd-386.md5
-          - cross/go-template-freebsd-386.sha256
-          - cross/go-template-linux-arm
-          - cross/go-template-linux-arm.md5
-          - cross/go-template-linux-arm.sha256
-          - cross/go-template-linux-arm64
-          - cross/go-template-linux-arm64.md5
-          - cross/go-template-linux-arm64.sha256
-          - cross/go-template-linux-amd64
-          - cross/go-template-linux-amd64.md5
-          - cross/go-template-linux-amd64.sha256
-          - cross/go-template-linux-386
-          - cross/go-template-linux-386.md5
-          - cross/go-template-linux-386.sha256
-          - cross/go-template-solaris-amd64
-          - cross/go-template-solaris-amd64.md5
-          - cross/go-template-solaris-amd64.sha256
-          - cross/go-template-windows-amd64.exe
-          - cross/go-template-windows-amd64.exe.md5
-          - cross/go-template-windows-amd64.exe.sha256
-          - cross/go-template-windows-386.exe
-          - cross/go-template-windows-386.exe.md5
-          - cross/go-template-windows-386.exe.sha256
+          - cross/feedster-darwin-amd64
+          - cross/feedster-darwin-amd64.md5
+          - cross/feedster-darwin-amd64.sha256
+          - cross/feedster-darwin-386
+          - cross/feedster-darwin-386.md5
+          - cross/feedster-darwin-386.sha256
+          - cross/feedster-freebsd-amd64
+          - cross/feedster-freebsd-amd64.md5
+          - cross/feedster-freebsd-amd64.sha256
+          - cross/feedster-freebsd-386
+          - cross/feedster-freebsd-386.md5
+          - cross/feedster-freebsd-386.sha256
+          - cross/feedster-linux-arm
+          - cross/feedster-linux-arm.md5
+          - cross/feedster-linux-arm.sha256
+          - cross/feedster-linux-arm64
+          - cross/feedster-linux-arm64.md5
+          - cross/feedster-linux-arm64.sha256
+          - cross/feedster-linux-amd64
+          - cross/feedster-linux-amd64.md5
+          - cross/feedster-linux-amd64.sha256
+          - cross/feedster-linux-386
+          - cross/feedster-linux-386.md5
+          - cross/feedster-linux-386.sha256
+          - cross/feedster-solaris-amd64
+          - cross/feedster-solaris-amd64.md5
+          - cross/feedster-solaris-amd64.sha256
+          - cross/feedster-windows-amd64.exe
+          - cross/feedster-windows-amd64.exe.md5
+          - cross/feedster-windows-amd64.exe.sha256
+          - cross/feedster-windows-386.exe
+          - cross/feedster-windows-386.exe.md5
+          - cross/feedster-windows-386.exe.sha256
         skip_cleanup: true
         on:
           tags: true
