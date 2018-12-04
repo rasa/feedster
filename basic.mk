@@ -5,8 +5,9 @@ PREFIX?=$(shell pwd)
 STDERR=/dev/stderr
 else
 EXE_EXT=.exe
-WFIND?=$(shell where find | grep -iv "$(SYSTEMROOT)" | head -n 1)
-FIND?=$(shell cygpath -a -m "$(WFIND)")
+#WFIND?=$(shell where find | grep -iv "$(SYSTEMROOT)" | head -n 1)
+#FIND?=$(shell cygpath -a -m "$(WFIND)")
+FIND?=find
 PREFIX?=$(shell cygpath -a -m .)
 STDERR=
 endif
