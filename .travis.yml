@@ -5,6 +5,7 @@ go:
 before_install:
   - go get golang.org/x/lint/golint
   - go get honnef.co/go/tools/cmd/staticcheck
+  - make vendor
 jobs:
   include:
     - script: make all
