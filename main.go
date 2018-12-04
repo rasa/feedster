@@ -52,18 +52,67 @@ type Track struct { // Our example struct, you can use "-" to ignore a field
 	Track       string `csv:"track,omitempty"`
 	Prefix      string `csv:"prefix,omitempty"`
 	Subtitle    string `csv:"subtitle,omitempty"`
+	Summary     string `csv:"summary,omitempty"`
 	Title       string `csv:"title,omitempty"`
 	Year        string `csv:"year,omitempty"`
 	Duration    string
+	DurationSeconds int64
 	size        int64
 	modTime     time.Time
 }
 
-/*
-func normalizeFilename(filename string) err error {
-	err = Rename(filename, newpath)
+func normalizeFilename(filename string) (newname string) {
+	filename = strings.Replace(filename, `\`, "/", -1)
+	dir := filepath.Dir(filename)
+	if len(dir) > 0 {
+		if dir == "." {
+			dir = ""
+		} else {
+			if dir[len(dir)-1:] != "/" {
+				dir += "/"
+			}
+		}
+	}
+	base := filepath.Base(filename)
+	ext := filepath.Ext(base)
+	name := strings.TrimRight(base, ext)
+	newname = dir + name + strings.ToLower(ext)
+	return newname
 }
-*/
+
+func normalizeTrack(track *Track) (err error) {
+	oldname := track.Filename
+	newname := normalizeFilename(oldname)
+	if oldname != newname {
+		fi, err := os.Stat(oldname)
+		fi2, err2 := os.Stat(newname)
+		if err != nil {
+			if err2 == nil {
+				track.Filename = newname
+				return nil
+			}
+			log.Fatalf("Failed to read %s: %s", oldname, err)
+		}
+		oldTime := fi.ModTime()
+		err = os.Rename(oldname, newname)
+		if err != nil {
+			log.Fatalf("Cannot rename %s to %s: %s", oldname, newname, err)
+		}
+		fi2, err2 = os.Stat(newname)
+		if err2 != nil {
+			log.Fatalf("Failed to read %s: %s", newname, err)
+		}
+		newTime := fi2.ModTime()
+		if oldTime.Unix() != newTime.Unix() {
+			err = os.Chtimes(newname, oldTime, oldTime)
+			if err != nil {
+				log.Fatalf("Failed to set times on %s: %s", newname, err)
+			}
+		}
+	}
+	track.Filename = newname
+	return nil
+}
 
 func hhmmssToUint64(hhmmss string) (seconds int64) {
 	re := regexp.MustCompile(`(\d\d):(\d\d):(\d\d)`)
@@ -151,6 +200,9 @@ func setTrackDefaults(track *Track, lastTrack *Track, year int) bool {
 	if track.Genre == "" {
 		track.Genre = lastTrack.Genre
 	}
+	if track.Summary == "" {
+		track.Summary = track.Title
+	}
 	if track.Track == "" {
 		i, err := strconv.Atoi(lastTrack.Track)
 		if err == nil {
@@ -175,13 +227,16 @@ func setTrackDefaults(track *Track, lastTrack *Track, year int) bool {
 	if err != nil {
 		log.Fatalf("Command failed: %s: %s", cmd, err)
 	}
-	re := regexp.MustCompile(`Duration:\s*(\d\d:\d\d:\d\d)`)
+	re := regexp.MustCompile(`Duration:\s*(\d\d:\d\d:\d\d)\.(\d\d)`)
 
 	b := re.FindSubmatch(out)
-	if len(b) > 1 {
+	if len(b) > 2 {
 		track.Duration = string(b[1])
+		track.DurationSeconds = hhmmssToUint64(track.Duration)
+		if string(b[2]) != "00" {
+			track.DurationSeconds += 1
+		}
 	}
-	log.Printf("Duration=%v", track.Duration)
 	return true
 }
 
@@ -270,6 +325,10 @@ func processTrack(track *Track, lastTrack *Track) {
 		log.Fatal("Error while saving a tag: ", err)
 	}
 	tag.Close()
+	err = os.Chtimes(track.Filename, track.modTime, track.modTime)
+	if err != nil {
+		log.Fatal("Cannot set time for %s: ", track.Filename, err)
+	}
 }
 
 func main() {
@@ -307,6 +366,7 @@ func main() {
 	var lastTime time.Time
 
 	for _, track := range tracks {
+		normalizeTrack(track)
 		processTrack(track, lastTrack)
 		lastTrack = track
 		if track.Title == "" {
@@ -360,12 +420,10 @@ func main() {
 			PubDate:     &track.modTime,
 		}
 		item.AddImage(defaultURL + defaultJPG)
-		if track.Duration != "" {
-			item.AddDuration(hhmmssToUint64(track.Duration))
-		}
-		item.AddSummary(`item k <a href="http://example.com">example.com</a>`)
+		item.AddDuration(track.DurationSeconds)
+		item.AddSummary(track.Summary)
 		// add a Download to the Item
-		item.AddEnclosure(defaultURL+track.Filename, podcast.MP3, track.size)
+		item.AddEnclosure(defaultURL + track.Filename, podcast.MP3, track.size)
 
 		// add the Item and check for validation errors
 		_, err := p.AddItem(item)
