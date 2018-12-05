@@ -39,26 +39,26 @@ const (
 
 // Track contains the MP3 tags to be updated
 type Track struct { // Our example struct, you can use "-" to ignore a field
-	Filename    string `csv:"filename"`
-	AlbumArtist string `csv:"album_artist,omitempty"`
-	AlbumPrefix string `csv:"album_prefix,omitempty"`
-	AlbumTitle  string `csv:"album_title,omitempty"`
-	Artist      string `csv:"artist,omitempty"`
-	Composer    string `csv:"composer,omitempty"`
-	Copyright   string `csv:"copyright,omitempty"`
-	Description string `csv:"description,omitempty"`
-	DiscNumber  string `csv:"disc_number,omitempty"`
-	Genre       string `csv:"genre,omitempty"`
-	Track       string `csv:"track,omitempty"`
-	Prefix      string `csv:"prefix,omitempty"`
-	Subtitle    string `csv:"subtitle,omitempty"`
-	Summary     string `csv:"summary,omitempty"`
-	Title       string `csv:"title,omitempty"`
-	Year        string `csv:"year,omitempty"`
-	Duration    string
+	Filename        string `csv:"filename"`
+	AlbumArtist     string `csv:"album_artist,omitempty"`
+	AlbumPrefix     string `csv:"album_prefix,omitempty"`
+	AlbumTitle      string `csv:"album_title,omitempty"`
+	Artist          string `csv:"artist,omitempty"`
+	Composer        string `csv:"composer,omitempty"`
+	Copyright       string `csv:"copyright,omitempty"`
+	Description     string `csv:"description,omitempty"`
+	DiscNumber      string `csv:"disc_number,omitempty"`
+	Genre           string `csv:"genre,omitempty"`
+	Track           string `csv:"track,omitempty"`
+	Prefix          string `csv:"prefix,omitempty"`
+	Subtitle        string `csv:"subtitle,omitempty"`
+	Summary         string `csv:"summary,omitempty"`
+	Title           string `csv:"title,omitempty"`
+	Year            string `csv:"year,omitempty"`
+	Duration        string
 	DurationSeconds int64
-	size        int64
-	modTime     time.Time
+	size            int64
+	modTime         time.Time
 }
 
 func normalizeFilename(filename string) (newname string) {
@@ -115,6 +115,7 @@ func normalizeTrack(track *Track) (err error) {
 }
 
 func hhmmssToUint64(hhmmss string) (seconds int64) {
+	// there's surely an easier way than this, right?
 	re := regexp.MustCompile(`(\d\d):(\d\d):(\d\d)`)
 	b := re.FindStringSubmatch(hhmmss)
 	if len(b) < 4 {
@@ -126,6 +127,7 @@ func hhmmssToUint64(hhmmss string) (seconds int64) {
 }
 
 func findNewestFile(dir string, mask string) (name string, err error) {
+	// inspiration: https://stackoverflow.com/a/45579190
 	files, err := ioutil.ReadDir(dir)
 	if err != nil {
 		log.Fatalf("Cannot read directory %s: %s", dir, err)
@@ -136,7 +138,7 @@ func findNewestFile(dir string, mask string) (name string, err error) {
 		if mask != "" {
 			matched, err := path.Match(mask, fi.Name())
 			if err != nil {
-				log.Printf("Match failed on %s for %s", mask, fi.Name)
+				log.Printf("Match failed on %s for %s", mask, fi.Name())
 				return "", err
 			}
 			if !matched {
@@ -164,7 +166,7 @@ func findNewestFile(dir string, mask string) (name string, err error) {
 
 func setTrackDefaults(track *Track, lastTrack *Track, year int) bool {
 	if track.Title == "" {
-		log.Printf("Skipping track, as the track title is empty")
+		log.Println("Skipping track, as the track title is empty for", track.Filename)
 		return false
 	}
 	if track.Artist == "" {
@@ -234,7 +236,7 @@ func setTrackDefaults(track *Track, lastTrack *Track, year int) bool {
 		track.Duration = string(b[1])
 		track.DurationSeconds = hhmmssToUint64(track.Duration)
 		if string(b[2]) != "00" {
-			track.DurationSeconds += 1
+			track.DurationSeconds++
 		}
 	}
 	return true
@@ -299,7 +301,7 @@ func addFrontCover(filename string, mimeType string) (pic *id3v2.PictureFrame, e
 
 func processTrack(track *Track, lastTrack *Track) {
 	//fmt.Printf("%+v\n", track)
-	log.Printf("Processing %v\n", track.Filename)
+	log.Println("Processing", track.Filename)
 	fi, err := os.Stat(track.Filename)
 	if err != nil {
 		log.Fatalf("Cannot open %s: %s", track.Filename, err)
@@ -322,12 +324,12 @@ func processTrack(track *Track, lastTrack *Track) {
 	// Write it to file.
 	err = tag.Save()
 	if err != nil {
-		log.Fatal("Error while saving a tag: ", err)
+		log.Fatalf("Cannot save tags for %s: %s", track.Filename, err)
 	}
 	tag.Close()
 	err = os.Chtimes(track.Filename, track.modTime, track.modTime)
 	if err != nil {
-		log.Fatal("Cannot set time for %s: ", track.Filename, err)
+		log.Fatalf("Cannot set time for %s: %s", track.Filename, err)
 	}
 }
 
@@ -366,12 +368,15 @@ func main() {
 	var lastTime time.Time
 
 	for _, track := range tracks {
-		normalizeTrack(track)
-		processTrack(track, lastTrack)
-		lastTrack = track
+		if track.Filename == "" {
+			continue
+		}
 		if track.Title == "" {
 			continue
 		}
+		normalizeTrack(track)
+		processTrack(track, lastTrack)
+		lastTrack = track
 		if firstTime.After(track.modTime) {
 			firstTime = track.modTime
 		}
@@ -396,7 +401,8 @@ func main() {
 		"Sample Podcasts",
 		defaultURL,
 		"An example Podcast",
-		&createdDate, &updatedDate,
+		&createdDate, 
+		&updatedDate,
 	)
 
 	// add some channel properties
@@ -407,6 +413,9 @@ func main() {
 	p.AddAtomLink(defaultURL + "atom.rss")
 
 	for _, track := range tracks {
+		if track.Filename == "" {
+			continue
+		}
 		if track.Title == "" {
 			continue
 		}
@@ -423,18 +432,19 @@ func main() {
 		item.AddDuration(track.DurationSeconds)
 		item.AddSummary(track.Summary)
 		// add a Download to the Item
-		item.AddEnclosure(defaultURL + track.Filename, podcast.MP3, track.size)
+		item.AddEnclosure(defaultURL+track.Filename, podcast.MP3, track.size)
 
 		// add the Item and check for validation errors
 		_, err := p.AddItem(item)
 		if err != nil {
-			log.Printf("item validation error: %s", err)
+			log.Printf("Cannot add track %s: %s", track.Filename, err)
 		}
 	}
 
 	// Podcast.Encode writes to an io.Writer
-	if err := p.Encode(file); err != nil {
-		fmt.Println("error writing to stdout:", err.Error())
+	err = p.Encode(file)
+	if err != nil {
+		log.Printf("Cannot write to %s: %s", file.Name(), err)
 	}
 }
 
