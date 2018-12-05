@@ -85,9 +85,9 @@ func normalizeTrack(track *Track) (err error) {
 	newname := normalizeFilename(oldname)
 	if oldname != newname {
 		fi, err := os.Stat(oldname)
-		fi2, err2 := os.Stat(newname)
 		if err != nil {
-			if err2 == nil {
+			_, err = os.Stat(newname)
+			if err == nil {
 				track.Filename = newname
 				return nil
 			}
@@ -98,11 +98,11 @@ func normalizeTrack(track *Track) (err error) {
 		if err != nil {
 			log.Fatalf("Cannot rename %s to %s: %s", oldname, newname, err)
 		}
-		fi2, err2 = os.Stat(newname)
-		if err2 != nil {
+		fi, err = os.Stat(newname)
+		if err != nil {
 			log.Fatalf("Failed to read %s: %s", newname, err)
 		}
-		newTime := fi2.ModTime()
+		newTime := fi.ModTime()
 		if oldTime.Unix() != newTime.Unix() {
 			err = os.Chtimes(newname, oldTime, oldTime)
 			if err != nil {
@@ -318,7 +318,7 @@ func processTrack(track *Track, lastTrack *Track) {
 	setTags(tag, track)
 
 	pic, err := addFrontCover(defaultJPG, defaultMime)
-	if pic != nil {
+	if err == nil && pic != nil {
 		tag.AddAttachedPicture(*pic)
 	}
 	// Write it to file.
