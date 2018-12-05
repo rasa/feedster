@@ -1,18 +1,16 @@
 # rasa/feedster
 
-One paragraph of project description goes here
+Easily tag MP3 files and generate iTunes podcast feed
 
 ## Getting Started
 
-These instructions will get you a copy of the project up and running on your local machine for development and testing purposes. See deployment for notes on how to deploy the project on a live system.
-
-### Prerequisites
-
-What things you need to install the software and how to install them
-
-```shell
-Give examples
-```
+1. Download feedster from releases page (or install via scoop)
+2. Update config.yaml (coming soon)
+3. Update default.csv with your tag settings
+4. Run `feedster`
+5. Upload default.xml and .mp3s 
+6. Test feed
+7. Submit feed to iTunes
 
 ### Installing
 
@@ -21,7 +19,7 @@ A step by step series of examples that tell you how to get a development env run
 Say what the step will be
 
 ```shell
-Give the example
+
 ```
 
 And repeat
@@ -81,3 +79,7 @@ This project is licensed under the MIT License - see the [LICENSE.md](LICENSE.md
 * Hat tip to anyone whose code was used
 * Inspiration
 * etc
+
+## Links
+
+* https://help.mp3tag.de/main_tags.html
