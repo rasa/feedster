@@ -1,15 +1,19 @@
 # Set an output prefix, which is the local directory if not specified
 ifneq ($(OS),Windows_NT)
-FIND?=find
-PREFIX?=$(shell pwd)
-STDERR=/dev/stderr
+	FIND?=find
+	# Set an output prefix, which is the local directory if not specified
+	PREFIX?=$(shell pwd)
+	STDERR?=/dev/stderr
 else
-EXE_EXT=.exe
-#WFIND?=$(shell where find | grep -iv "$(SYSTEMROOT)" | head -n 1)
-#FIND?=$(shell cygpath -a -m "$(WFIND)")
-FIND?=find
-PREFIX?=$(shell cygpath -a -m .)
-STDERR=
+	EXE_EXT?=.exe
+	CYGPATH?=$(shell where.exe cygpath.exe | tr "\\\\\\\\" "//")
+	FIND?=$(shell where find.exe | grep -E -iv "\\\\System32\\\\" | head -n 1 | tr "\\\\\\\\" "//")
+	PREFIX?=$(shell $(CYGPATH) -a -m .)
+	MSYS_ROOT?=C:/msys64
+	MSYS_ROOT:=$(shell echo '$(MSYS_ROOT)' | tr "\\\\\\\\" "//")
+	ifneq ($(wildcard $(MSYS_ROOT)/usr/bin/rm.exe),)
+		RM=$(MSYS_ROOT)/usr/bin/rm.exe -f
+	endif
 endif
 
 # Set the build dir, where built cross-compiled binaries will be output

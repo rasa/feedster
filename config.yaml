@@ -1,0 +1,77 @@
+# config.yaml
+
+# required fields:
+
+# default: none
+base_url:
+
+#optional fields:
+
+# default: none
+# author:
+
+# default: none
+# category:
+
+# default: yes
+# complete:
+
+# default: none
+# copyright:
+
+# default: Copyright (c) & (p) %d, %s
+# copyright_mask:
+
+# default: 1
+# disc_number:
+
+# default: none
+# email:
+
+# default: none
+# encoded_by:
+
+# default: no
+# explicit:
+
+# default: none
+# image:
+
+# default: default.csv
+# input_file:
+
+# default: set by https://github.com/eduncan911/podcast/blob/master/podcast.go#L71
+# generator:
+
+# default: en-us
+# language:
+
+# default: email field
+# managingeditor:
+
+# default: default.xml
+# output_file:
+
+# example: "{disc_number%02d}-{track%02d}-{title%_s}.mp3"
+# creates: 01-01-Seated_Meditation.mp3
+# example: "{disc_number%02d}_{track%02d}_{title%-s}.mp3"
+# creates: 01_01_Seated-Meditation.mp3
+# rename_mask: "{disc_number%02d}-{track%02d}-{title%_s}.mp3"
+
+# default: settings.yaml
+# settings_file:
+
+# default: true
+# total_discs:
+
+# default: true
+# total_tracks:
+
+# default: 1
+# track_no:
+
+# default: 1
+# ttl:
+
+# default: email field
+# webmaster: 
