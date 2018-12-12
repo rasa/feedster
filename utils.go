@@ -7,7 +7,7 @@ import (
 	"log"
 	"os"
 	"path"
-	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 
@@ -140,21 +140,9 @@ func hhmmssToUint64(hhmmss string) (seconds int64) {
 }
 */
 
-func normalizeFilename(filename string) (newname string) {
-	filename = strings.Replace(filename, `\`, "/", -1)
-	dir := filepath.Dir(filename)
-	if len(dir) > 0 {
-		if dir == "." {
-			dir = ""
-		} else {
-			if dir[len(dir)-1:] != "/" {
-				dir += "/"
-			}
-		}
+func normalizeFilename(filename string) string {
+	if runtime.GOOS == "windows" {
+		return strings.Replace(filename, `\`, "/", -1)
 	}
-	base := filepath.Base(filename)
-	ext := filepath.Ext(base)
-	name := strings.TrimRight(base, ext)
-	newname = dir + name + strings.ToLower(ext)
-	return newname
+	return filename
 }
