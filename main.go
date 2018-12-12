@@ -47,7 +47,7 @@ const (
 var mimeMap = map[string]string{
 	"jpg":  "image/jpeg",
 	"jepg": "image/jpeg",
-	"png":  "image/jpeg",
+	"png":  "image/png",
 }
 
 // Default has default settings read from config.yaml (and local.yaml, if it exists)
