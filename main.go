@@ -1,4 +1,4 @@
-// Program feedmp3s tags mp3s from csv file, gens xml too!
+// Program feedster tags mp3s from csv/xls file and gens podcast xml
 package main
 
 import (
