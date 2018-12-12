@@ -24,7 +24,6 @@ import (
 	"github.com/bogem/id3v2"
 	"github.com/eduncan911/podcast"
 	"github.com/gocarina/gocsv"
-	"github.com/mattn/go-colorable"
 	fpodcast "github.com/rasa/feedster/podcast"
 	"github.com/rasa/feedster/version"
 	log "github.com/sirupsen/logrus"
@@ -78,7 +77,7 @@ type Default struct {
 
 var defaults = &Default{
 	Complete:      "yes",
-	CopyrightMask: "Copyright (c) & (p) %d, %s",
+	CopyrightMask: "Copyright (c) & (p) %d, %s", // or: Copyright © & ℗ %d, %s
 	DiscNumber:    "1",
 	Explicit:      "no",
 	Ffprobe:       "ffprobe",
@@ -119,7 +118,8 @@ func dump(s string, x interface{}) {
 
 	b, err := json.MarshalIndent(x, "", "  ")
 	if err != nil {
-		log.Infoln("error: ", err)
+		log.Errorln("marshal error: ", err)
+		return
 	}
 	log.Info(string(b))
 }
@@ -803,10 +803,7 @@ func main() {
 		log.SetLevel(log.Level(*logLevel))
 	}
 
-	if runtime.GOOS == "windows" {
-		log.SetFormatter(&log.TextFormatter{ForceColors: true})
-		log.SetOutput(colorable.NewColorableStdout())
-	}
+	logInit()
 
 	loadDefaults(defaultConfigYAML)
 
