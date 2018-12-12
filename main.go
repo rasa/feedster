@@ -124,18 +124,19 @@ func normalizeTrack(track *Track) (err error) {
 	track.OriginalFilename = track.Filename
 	newname := normalizeFilename(track.Filename)
 	if track.Filename == newname {
-		// file doesn't need be renamed
+		// file doesn't need to be renamed
 		return nil
 	}
 	fi, err := os.Stat(track.Filename)
 	if err != nil {
 		_, err = os.Stat(newname)
 		if err == nil {
-			// file has already been renamed, and the user deleted the original
+			// file has already been renamed, 
+			// and the user deleted the original
 			track.Filename = newname
 			return nil
 		}
-		log.Fatalf("Failed to read %s: %s", oldname, err)
+		log.Fatalf("Failed to read %s: %s", track.Filename, err)
 	}
 	oldTime := fi.ModTime()
 	err = os.Rename(track.Filename, newname)
@@ -147,7 +148,7 @@ func normalizeTrack(track *Track) (err error) {
 		log.Fatalf("Failed to read %s: %s", newname, err)
 	}
 	newTime := fi.ModTime()
-	if oldTime.Unix() != newTime.Unix() {
+	if oldTime.UnixNano() != newTime.UnixNano() {
 		err = os.Chtimes(newname, oldTime, oldTime)
 		if err != nil {
 			log.Fatalf("Failed to set times on %s: %s", newname, err)
