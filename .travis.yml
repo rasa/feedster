@@ -5,6 +5,7 @@ go:
 before_install:
   - go get golang.org/x/lint/golint
   - go get honnef.co/go/tools/cmd/staticcheck
+  - go get -u github.com/konsorten/go-windows-terminal-sequences
   - go get -u ./...
 jobs:
   include:
