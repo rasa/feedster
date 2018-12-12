@@ -227,31 +227,43 @@ func setTrackDefaults(track *Track, lastTrack *Track, year int) bool {
 	if err != nil {
 		log.Fatalf("Command failed: %s: %s", cmd, err)
 	}
-	re := regexp.MustCompile(`Duration:\s*([\d]+):([\d]+):([\d]+)\.([\d]+)`)
 
+	re := regexp.MustCompile(`Duration:\s*([\d]+):([\d]+):([\d]+)`)
 	b := re.FindSubmatch(out)
-	if len(b) > 4 {
-		hours, _ := strconv.Atoi(string(b[1]))
-		minutes, _ := strconv.Atoi(string(b[2]))
-		seconds, _ := strconv.Atoi(string(b[3]))
-		hundredths, _ := strconv.Atoi(string(b[4]))
 
-		track.DurationMilliseconds = int64(1000*((hours*3600)+(minutes*60)+seconds) + (hundredths * 10))
-
-		if hundredths > 0 {
-			seconds++
-		}
-		if seconds > 60 {
-			minutes++
-			seconds = 0
-		}
-		if minutes > 60 {
-			hours++
-			minutes = 0
-		}
-
-		track.Duration = fmt.Sprintf(durationMask, hours, minutes, seconds)
+	if len(b) <= 3 {
+		log.Printf("Failed to get duration for %s", track.Filename)
+		return true
 	}
+
+	hours, _ := strconv.Atoi(string(b[1]))
+	minutes, _ := strconv.Atoi(string(b[2]))
+	seconds, _ := strconv.Atoi(string(b[3]))
+	hundredths := int(0)
+
+	re = regexp.MustCompile(`Duration:\s*[\d]+:[\d]+:[\d]+\.([\d]+)`)
+	b = re.FindSubmatch(out)
+
+	if len(b) == 2 {
+		hundredths, _ = strconv.Atoi(string(b[1]))
+	}
+
+	track.DurationMilliseconds = int64(1000*((hours*3600)+(minutes*60)+seconds) + (hundredths * 10))
+
+	if hundredths > 0 {
+		seconds++
+	}
+	if seconds > 59 {
+		minutes++
+		seconds = 0
+	}
+	if minutes > 59 {
+		hours++
+		minutes = 0
+	}
+
+	track.Duration = fmt.Sprintf(durationMask, hours, minutes, seconds)
+
 	return true
 }
 

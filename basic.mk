@@ -4,6 +4,7 @@ ifneq ($(OS),Windows_NT)
 	# Set an output prefix, which is the local directory if not specified
 	PREFIX?=$(shell pwd)
 	STDERR?=/dev/stderr
+	SHA256SUM=sha256sum
 else
 	EXE_EXT?=.exe
 	CYGPATH?=$(shell where.exe cygpath.exe | tr "\\\\\\\\" "//")
@@ -14,6 +15,7 @@ else
 	ifneq ($(wildcard $(MSYS_ROOT)/usr/bin/rm.exe),)
 		RM=$(MSYS_ROOT)/usr/bin/rm.exe -f
 	endif
+	SHA256SUM=$(shell where sha256sum | tr "\\\\\\\\" "//")
 endif
 
 # Set the build dir, where built cross-compiled binaries will be output
@@ -116,7 +118,7 @@ GOOS=$(1) GOARCH=$(2) CGO_ENABLED=$(CGO_ENABLED) $(GO) build \
 	 -a -tags "$(BUILDTAGS) static_build netgo" \
 	 -installsuffix netgo ${GO_LDFLAGS_STATIC} .;
 md5sum $(BUILDDIR)/$(1)/$(2)/$(NAME)$(if $(findstring windows,$(1)),$(EXE_EXT)) > $(BUILDDIR)/$(1)/$(2)/$(NAME)$(if $(findstring windows,$(1)),$(EXE_EXT)).md5;
-sha256sum $(BUILDDIR)/$(1)/$(2)/$(NAME)$(if $(findstring windows,$(1)),$(EXE_EXT)) > $(BUILDDIR)/$(1)/$(2)/$(NAME)$(if $(findstring windows,$(1)),$(EXE_EXT)).sha256;
+$(SHA256SUM) $(BUILDDIR)/$(1)/$(2)/$(NAME)$(if $(findstring windows,$(1)),$(EXE_EXT)) > $(BUILDDIR)/$(1)/$(2)/$(NAME)$(if $(findstring windows,$(1)),$(EXE_EXT)).sha256;
 endef
 
 .PHONY: cross
@@ -131,7 +133,7 @@ GOOS=$(1) GOARCH=$(2) CGO_ENABLED=$(CGO_ENABLED) $(GO) build \
 	 -a -tags "$(BUILDTAGS) static_build netgo" \
 	 -installsuffix netgo ${GO_LDFLAGS_STATIC} .;
 md5sum $(BUILDDIR)/$(NAME)-$(1)-$(2)$(if $(findstring windows,$(1)),$(EXE_EXT)) > $(BUILDDIR)/$(NAME)-$(1)-$(2)$(if $(findstring windows,$(1)),$(EXE_EXT)).md5;
-sha256sum $(BUILDDIR)/$(NAME)-$(1)-$(2)$(if $(findstring windows,$(1)),$(EXE_EXT)) > $(BUILDDIR)/$(NAME)-$(1)-$(2)$(if $(findstring windows,$(1)),$(EXE_EXT)).sha256;
+$(SHA256SUM) $(BUILDDIR)/$(NAME)-$(1)-$(2)$(if $(findstring windows,$(1)),$(EXE_EXT)) > $(BUILDDIR)/$(NAME)-$(1)-$(2)$(if $(findstring windows,$(1)),$(EXE_EXT)).sha256;
 endef
 
 .PHONY: release

@@ -34,6 +34,9 @@ base_url:
 # default: no
 # explicit:
 
+# default: ffprobe
+# ffprobe:
+
 # default: none
 # image:
 
