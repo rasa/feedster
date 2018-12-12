@@ -5,12 +5,13 @@ Easily tag MP3 files and generate iTunes podcast feed
 ## Getting Started
 
 1. Download feedster from releases page (or install via scoop)
-2. Update config.yaml (coming soon)
-3. Update default.csv with your tag settings
-4. Run `feedster`
-5. Upload default.xml and .mp3s 
-6. Test feed
-7. Submit feed to iTunes
+2. Update config.yaml
+3. Update settings.yaml
+4. Update default.csv with your tag settings
+5. Run `feedster`
+6. Upload default.xml and .mp3s 
+7. Test feed via http://podba.se/validate/
+8. Submit feed via https://podcastsconnect.apple.com/
 
 ### Installing
 
