@@ -1,4 +1,4 @@
-// Program feedmp3s tags mp3s from csv file, gens xml too!
+// Program feedster tags mp3s from csv/xls file and gens podcast xml
 package main
 
 import (
@@ -47,7 +47,7 @@ const (
 var mimeMap = map[string]string{
 	"jpg":  "image/jpeg",
 	"jepg": "image/jpeg",
-	"png":  "image/jpeg",
+	"png":  "image/png",
 }
 
 // Default has default settings read from config.yaml (and local.yaml, if it exists)
@@ -122,33 +122,36 @@ func dump(s string, x interface{}) {
 
 func normalizeTrack(track *Track) (err error) {
 	track.OriginalFilename = track.Filename
-	oldname := track.Filename
-	newname := normalizeFilename(oldname)
-	if oldname != newname {
-		fi, err := os.Stat(oldname)
-		if err != nil {
-			_, err = os.Stat(newname)
-			if err == nil {
-				track.Filename = newname
-				return nil
-			}
-			log.Fatalf("Failed to read %s: %s", oldname, err)
+	newname := normalizeFilename(track.Filename)
+	if track.Filename == newname {
+		// file doesn't need to be renamed
+		return nil
+	}
+	fi, err := os.Stat(track.Filename)
+	if err != nil {
+		_, err = os.Stat(newname)
+		if err == nil {
+			// file has already been renamed, 
+			// and the user deleted the original
+			track.Filename = newname
+			return nil
 		}
-		oldTime := fi.ModTime()
-		err = os.Rename(oldname, newname)
+		log.Fatalf("Failed to read %s: %s", track.Filename, err)
+	}
+	oldTime := fi.ModTime()
+	err = os.Rename(track.Filename, newname)
+	if err != nil {
+		log.Fatalf("Cannot rename %s to %s: %s", track.Filename, newname, err)
+	}
+	fi, err = os.Stat(newname)
+	if err != nil {
+		log.Fatalf("Failed to read %s: %s", newname, err)
+	}
+	newTime := fi.ModTime()
+	if oldTime.UnixNano() != newTime.UnixNano() {
+		err = os.Chtimes(newname, oldTime, oldTime)
 		if err != nil {
-			log.Fatalf("Cannot rename %s to %s: %s", oldname, newname, err)
-		}
-		fi, err = os.Stat(newname)
-		if err != nil {
-			log.Fatalf("Failed to read %s: %s", newname, err)
-		}
-		newTime := fi.ModTime()
-		if oldTime.Unix() != newTime.Unix() {
-			err = os.Chtimes(newname, oldTime, oldTime)
-			if err != nil {
-				log.Fatalf("Failed to set times on %s: %s", newname, err)
-			}
+			log.Fatalf("Failed to set times on %s: %s", newname, err)
 		}
 	}
 	track.Filename = newname
@@ -203,18 +206,9 @@ func setTrackDefaults(track *Track, lastTrack *Track, year int) bool {
 			track.Copyright = fmt.Sprintf(defaults.CopyrightMask, year, track.Artist)
 		}
 	}
-	//if track.Description == "" {
-	//	track.Description = track.Title
-	//}
 	if track.Genre == "" {
 		track.Genre = lastTrack.Genre
 	}
-	//if track.Subtitle == "" {
-	//	track.Subtitle = track.Title
-	//}
-	//if track.Summary == "" {
-	//	track.Summary = track.Title
-	//}
 	if track.Year == "" {
 		track.Year = lastTrack.Year
 	}
@@ -715,6 +709,7 @@ func readXLS(xlsFile string) (tracks []*Track) {
 
 	var sheetName string
 	for _, sheetName = range xlsx.GetSheetMap() {
+		// use the first sheet in the workbook
 		break
 	}
 	if sheetName == "" {
@@ -779,14 +774,11 @@ func updatedDate(tracks []*Track) (updatedDate time.Time) {
 	return updatedDate
 }
 
-func goodTracks(tracks []*Track) uint {
-	rv := uint(0)
-
+func validTracks(tracks []*Track) (rv uint) {
 	for _, track := range tracks {
-		if !track.IsValid() {
-			continue
+		if track.IsValid() {
+			rv++
 		}
-		rv++
 	}
 
 	return rv
@@ -915,16 +907,16 @@ func main() {
 	}
 	defer xmlFD.Close()
 
-	createdDate := createdDate(tracks)
-	updatedDate := updatedDate(tracks)
+	pubDate := createdDate(tracks)
+	lastBuildDate := updatedDate(tracks)
 
 	// instantiate a new Podcast
 	p := podcast.New(
 		fp.Title,
 		fp.Link,
 		fp.Description,
-		&createdDate, // PubDate
-		&updatedDate, // LastBuildDate
+		&pubDate,
+		&lastBuildDate
 	)
 
 	setPodcast(&p, &fp)
@@ -942,5 +934,5 @@ func main() {
 	if err != nil {
 		log.Printf("Cannot write to %s: %s", xmlFD.Name(), err)
 	}
-	log.Printf("Saved %d of %d tracks to %s", goodTracks(tracks), len(tracks), defaults.OutputFile)
+	log.Printf("Saved %d of %d tracks to %s", validTracks(tracks), len(tracks), defaults.OutputFile)
 }
