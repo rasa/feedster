@@ -13,6 +13,7 @@ before_install:
   - go get golang.org/x/lint/golint
   - go get honnef.co/go/tools/cmd/staticcheck
   - GOOS=windows go get -u ./...
+  - go get -u ./...
 jobs:
   include:
     - script: make all
