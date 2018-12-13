@@ -333,7 +333,7 @@ func setTags(tag *id3v2.Tag, track *Track, defaults *Default, tracks []*Track) {
 
 	// system defined fields:
 	
-	t := time.Unix(0, track.modTime)
+	t := time.Unix(0, track.ModTime)
 	MMDD := fmt.Sprintf("%02d%02d", t.Month(), t.Day())
 	HHMM := fmt.Sprintf("%02d%02d", t.Hour(), t.Minute())
 	
