@@ -311,12 +311,25 @@ func setTags(tag *id3v2.Tag, track *Track, defaults *Default, tracks []*Track) {
 	addTextFrame(tag, "Copyright message", track.Copyright)
 	//panics:
 	//tag.AddTextFrame(tag.CommonID("Comments"), id3v2.EncodingUTF8, track.Copyright)
-	addTextFrame(tag, "Part of a set"), discNumber)
+	addTextFrame(tag, "Part of a set", discNumber)
 	if defaults.EncodedBy != "" {
 		addTextFrame(tag, "Encoded by", defaults.EncodedBy)
 	}
 	addTextFrame(tag, "Language", defaults.Language)
-	addTextFrame(tag, "Track number/Position in set"), trackNumber)
+	sub := ""
+	if track.Subtitle != "" {
+		sub = track.Subtitle
+	}
+	if track.Description != "" {
+		if sub != "" {
+			sub += " / "
+		}
+		sub += track.Description
+	}
+	if sub != "" {
+		addTextFrame(tag, "Subtitle/Description refinement", sub)
+	}
+	addTextFrame(tag, "Track number/Position in set", trackNumber)
 
 	// system defined fields:
 	
@@ -325,8 +338,8 @@ func setTags(tag *id3v2.Tag, track *Track, defaults *Default, tracks []*Track) {
 	HHMM := fmt.Sprintf("%02d%02d", t.Hour(), t.Minute())
 	
 	addTextFrame(tag, "Date", MMDD)
-	addTextFrame(tag, "Time"), HHMM)
-
+	addTextFrame(tag, "Time", HHMM)
+	
 	addTextFrame(tag, "Original filename", track.OriginalFilename)
 	addTextFrame(tag, "Size", strconv.Itoa(track.FileSize))
 	addTextFrame(tag, "Length", strconv.Itoa(track.DurationMilliseconds))
