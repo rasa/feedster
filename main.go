@@ -341,8 +341,8 @@ func setTags(tag *id3v2.Tag, track *Track, defaults *Default, tracks []*Track) {
 	addTextFrame(tag, "Time", HHMM)
 	
 	addTextFrame(tag, "Original filename", track.OriginalFilename)
-	addTextFrame(tag, "Size", strconv.FormatInt(track.FileSize, 10)
-	addTextFrame(tag, "Length", strconv.FormatInt(track.DurationMilliseconds, 10)
+	addTextFrame(tag, "Size", strconv.FormatInt(track.FileSize, 10))
+	addTextFrame(tag, "Length", strconv.FormatInt(track.DurationMilliseconds, 10))
 	
 	// Set comment frame.
 	comment := id3v2.CommentFrame{
