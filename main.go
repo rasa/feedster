@@ -270,9 +270,14 @@ func totalTracks(tracks []*Track, discNumber string) (totalTracks int) {
 	return totalTracks
 }
 
+func addTextFrame(tag *id3v2.Tag, id string, text string) {
+	tag.AddTextFrame(tag.CommonID(id), id3v2.EncodingUTF8, text)
+}
+
 func setTags(tag *id3v2.Tag, track *Track, defaults *Default, tracks []*Track) {
 	//tag.SetDefaultEncoding(id3v2.EncodingUTF8)
 	//tag.SetVersion(4)
+
 
 	totalDiscs := totalDiscs(tracks)
 	totalTracks := totalTracks(tracks, track.DiscNumber)
@@ -292,19 +297,40 @@ func setTags(tag *id3v2.Tag, track *Track, defaults *Default, tracks []*Track) {
 	log.Debugf("discNumber=%s\n", discNumber)
 	log.Debugf("trackNumber=%s\n", trackNumber)
 
-	tag.AddTextFrame(tag.CommonID("Band/Orchestra/Accompaniment"), id3v2.EncodingUTF8, track.AlbumArtist)
+	// user defined fields:
+	
 	tag.SetAlbum(track.AlbumTitle)
-	tag.AddTextFrame(tag.CommonID("Part of a set"), id3v2.EncodingUTF8, discNumber)
-	tag.AddTextFrame(tag.CommonID("Album/Movie/Show title"), id3v2.EncodingUTF8, track.AlbumTitle)
 	tag.SetArtist(track.Artist)
-	tag.AddTextFrame(tag.CommonID("Copyright message"), id3v2.EncodingUTF8, track.Copyright)
-	//panics:
-	//tag.AddTextFrame(tag.CommonID("Comments"), id3v2.EncodingUTF8, track.Copyright)
 	tag.SetGenre(track.Genre)
-	tag.AddTextFrame(tag.CommonID("Track number/Position in set"), id3v2.EncodingUTF8, trackNumber)
 	tag.SetTitle(track.Title)
 	tag.SetYear(track.Year)
 
+	addTextFrame(tag, "Band/Orchestra/Accompaniment", track.AlbumArtist)
+	addTextFrame(tag, "Album/Movie/Show title", track.AlbumTitle)
+	addTextFrame(tag, "Composer", track.Composer)
+	addTextFrame(tag, "Copyright message", track.Copyright)
+	//panics:
+	//tag.AddTextFrame(tag.CommonID("Comments"), id3v2.EncodingUTF8, track.Copyright)
+	addTextFrame(tag, "Part of a set"), discNumber)
+	if defaults.EncodedBy != "" {
+		addTextFrame(tag, "Encoded by", defaults.EncodedBy)
+	}
+	addTextFrame(tag, "Language", defaults.Language)
+	addTextFrame(tag, "Track number/Position in set"), trackNumber)
+
+	// system defined fields:
+	
+	t := time.Unix(0, track.modTime)
+	MMDD := fmt.Sprintf("%02d%02d", t.Month(), t.Day())
+	HHMM := fmt.Sprintf("%02d%02d", t.Hour(), t.Minute())
+	
+	addTextFrame(tag, "Date", MMDD)
+	addTextFrame(tag, "Time"), HHMM)
+
+	addTextFrame(tag, "Original filename", track.OriginalFilename)
+	addTextFrame(tag, "Size", strconv.Itoa(track.FileSize))
+	addTextFrame(tag, "Length", strconv.Itoa(track.DurationMilliseconds))
+	
 	// Set comment frame.
 	comment := id3v2.CommentFrame{
 		Encoding:    id3v2.EncodingUTF8,
@@ -312,14 +338,7 @@ func setTags(tag *id3v2.Tag, track *Track, defaults *Default, tracks []*Track) {
 		Description: copyrightDescription,
 		Text:        track.Copyright,
 	}
-	tag.AddCommentFrame(comment)
-
-	tag.AddTextFrame(tag.CommonID("Composer"), id3v2.EncodingUTF8, track.Artist)
-	if defaults.EncodedBy != "" {
-		tag.AddTextFrame(tag.CommonID("Encoded by"), id3v2.EncodingUTF8, defaults.EncodedBy)
-	}
-	tag.AddTextFrame(tag.CommonID("Language"), id3v2.EncodingUTF8, defaults.Language)
-	tag.AddTextFrame(tag.CommonID("Original filename"), id3v2.EncodingUTF8, track.OriginalFilename)
+	tag.AddCommentFrame(comment)	
 }
 
 func addFrontCover(filename string) (pic *id3v2.PictureFrame, err error) {
