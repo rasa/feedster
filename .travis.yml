@@ -1,10 +1,5 @@
-matrix:
-  include:
-  - os: linux
-    dist: xenial
-  - os: osx
-    osx_image: xcode10.1
-  - os: windows
+os: linux
+dist: xenial
 language: go
 sudo: false
 go:
@@ -65,6 +60,7 @@ jobs:
         tags: true
       github-token: "$GITHUB_TOKEN"
       api_key:
-        secure: "vFbhQ3E1803n+/PBzNaWGyPiSyaqSugMC0paKKe27xb3uP9bz1F3lA/i43QUMpC37cx/EnkanHNBwzYcaqrxL7FcxYfrVM0Jw/raVLTrnuaeQkhmieqdyhGcmfe5OCntaKp3cNJAWCTNKDMxU/lm45rqJC3U7d7b+vFUk9HjNM0qIFVlq1fHj8TkSPP2jq05yj5FpEY63GiwXrb2WvGn1dPEE6+l6jUDrv5gryl9EVE2d2eE4DoFpPJhAjxJf6j+H3LhTvZ69BHz3qqMXmrQM3z8kLzVmR+ohXITNj29YPv4asl3F8rNqOplY8uRyRujyvA6nmaJS0cA6XqWvLPmAk42/rcw3Jl2GRltZmUjL7p9pcJm3IH/Gt8vAk4RjLELfbYlmX0QU/ASeOgMnbOSYNkXJqnNf6XZLkAi+m7+ckuMpis0bK/BbKa2l6voSRzTdI6t2u/YBelrWb0/2bgKgiqLbR7AmMJsmv9Equ+YZ33m02VVKg81VBEl8Y/VSWK42wXpgtCWWz/lFJAJceX2l1yjhS2di4xmENjMmbzQr0BIpXRFS8vcNtXmMdieSOgjlmzT9s+Bgh4sLnyzzcpxO+y9ylZHi2CuKY+sWUNIeVP5LBBgsCjomtui94lugJj/TTWi6RgplK2IniJBzJAODU2zP1VFQmImOX50B5WrmSM="
-env:
-  secure: CI25y1d8ZmegnXvfZBZCLgV3DZ0A7+PnZqI+EsGRenivcRRXc/6ZKlROHIPqjs5Ko1U9jxQ0J5cGkEohF5NUltHBYZYNdr0RX+piyFbQP4O6WJtsH08mFP9cYNin7YqTc4/TvAzObSrnfSXid6vwsCj2POQv1xq6fJZ4Ek3YDbaBa2+O2OG77GuWaQJtyrsPwpF/yxh6+AgZdaOCgcGua9Kogc7Gk76g5Z2/FmU8cWcCJQLqBDARakmmuRP8VXDA2UhCyHQ6FEabpFzfzVlQ32PAypJV50EEtR6H64BBag7QGq6fwgKKHAx9MdMDJJteDmYlA9+PXAxTzJFT/4UdKj3YPLGySSyZKqNwskC5SGfxB/EDUdKEwIzqRQPkfysm6XBMDQsQ+8kNjX61Zxh4osVXZ6ax/nsSG+301QM2aiNbdHw26lUlqDXrpSoZU9TT7d7ub7vO6AOx2foOFIjUHISLd52YWFVQzOnxYORqi/KBk7i8epvCz4KxpD/Juc9+onZIqZ6sRWi+sF8C2LIA/lZ/E5pCgImEXYlC/fDtTSN78HnpPNrt5lE93Lnw0EAYHUY0oolPhKqQalzdE/jXepxYb2sVuaqqe/Wsw5QlafiTzZh0vFDRkhmDwoNGjZqxQUhfa/2bTs0RDyEUawnq7qK5Myx91Vl5nq1DREEkvD4=
+        secure: T1gy0RXkoIvO+J38VwoIcTVEC6PpJ7rVx3KJJUlRUDyeJFtAmyTw4FwFokFgpCOdEFo89ju3WJWoHdZU4dUjdmrKnM8wTAecwDkrLXoQxSK4eF/3bYFJpi4+zBxvlWBMAoklWT0Bgc9enjgZYISffispqH9wVw5/mCLXf2IXRwo6lEEBSQTFm3PoW7ZjtIAqcXSss/JPfGU2GXHiwvpZSQevDrcwy4jgse8jWTvyno1HVEXZK+cP048jqgMjaiSeM6zTJU/uUDh1tSXCsLJow+/NU+Qd/Ypr6htvd7OfEpRgR1+6mLC7YfnSAydPYzQl0kuXcJFs6P7QoMQsBV1ydPh5AynTRRj/BcJDh35GMvSHpG7RzxvF6S5/af7RNLSdUXKXSbR01LT1kNyn70PkoLG7wOItb1O3zOtRXcsI6YSKKQv/kXoqKIvcyjPTNVlJ9AoGYPjYmbNSUTuKcrbxFcoYVHrhNrFCTifTKjfzHKjqlCyAN7QDq466aaf1kWtcUg6G8CckZcipk5cos3MoA9+2hsQ9SPDt3eoNHqN91d0iSdQokmoa/J/ME7cFWxV+D+2u7rGtZ1twOnf0qnWyBfH1EVtGQWlccVoyWCA23vFgzyN7LLSr1xEt9th6U3poFBq6dEZnUNTBYjN3rn2E3Qr9MmRF6OfnrdyvFSE/Cl8=
+        # generated via:
+        # travis encrypt --com XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX --add deploy.api_key
+        # and manually moved to the above location
