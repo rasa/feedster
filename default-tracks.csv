@@ -1,1 +1,1 @@
-filename,artist,prefix,title,subtitle,description,track,album_title,disc_number,genre,album_artist,year,copyright,composer,summary
+filename,title,artist,subtitle,description,track,disc_number,album_title,genre,album_artist,summary,copyright,composer,year
