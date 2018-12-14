@@ -1,69 +1,70 @@
 matrix:
   include:
-    - os: linux
-      dist: xenial
-    - os: osx
-      osx_image: xcode10.1
-    - os: windows
+  - os: linux
+    dist: xenial
+  - os: osx
+    osx_image: xcode10.1
+  - os: windows
 language: go
 sudo: false
 go:
-  - stable
+- stable
 before_install:
-  - go get golang.org/x/lint/golint
-  - go get honnef.co/go/tools/cmd/staticcheck
-  - GOOS=windows go get -u ./...
-  - go get -u ./...
+- go get golang.org/x/lint/golint
+- go get honnef.co/go/tools/cmd/staticcheck
+- GOOS=windows go get -u ./...
+- go get -u ./...
 jobs:
   include:
-    - script: make all
-    - stage: Run Test Coverage
-      script: make cover
-      after_success: bash <(curl -s https://codecov.io/bash)
-    - stage: Build Release
-      script:
-        - make release
-        - echo "Deploying to GitHub releases ..."
-      deploy:
-        provider: releases
-        file:
-          - cross/feedster-darwin-amd64
-          - cross/feedster-darwin-amd64.md5
-          - cross/feedster-darwin-amd64.sha256
-          - cross/feedster-darwin-386
-          - cross/feedster-darwin-386.md5
-          - cross/feedster-darwin-386.sha256
-          - cross/feedster-freebsd-amd64
-          - cross/feedster-freebsd-amd64.md5
-          - cross/feedster-freebsd-amd64.sha256
-          - cross/feedster-freebsd-386
-          - cross/feedster-freebsd-386.md5
-          - cross/feedster-freebsd-386.sha256
-          - cross/feedster-linux-arm
-          - cross/feedster-linux-arm.md5
-          - cross/feedster-linux-arm.sha256
-          - cross/feedster-linux-arm64
-          - cross/feedster-linux-arm64.md5
-          - cross/feedster-linux-arm64.sha256
-          - cross/feedster-linux-amd64
-          - cross/feedster-linux-amd64.md5
-          - cross/feedster-linux-amd64.sha256
-          - cross/feedster-linux-386
-          - cross/feedster-linux-386.md5
-          - cross/feedster-linux-386.sha256
-          - cross/feedster-solaris-amd64
-          - cross/feedster-solaris-amd64.md5
-          - cross/feedster-solaris-amd64.sha256
-          - cross/feedster-windows-amd64.exe
-          - cross/feedster-windows-amd64.exe.md5
-          - cross/feedster-windows-amd64.exe.sha256
-          - cross/feedster-windows-386.exe
-          - cross/feedster-windows-386.exe.md5
-          - cross/feedster-windows-386.exe.sha256
-        skip_cleanup: true
-        on:
-          tags: true
-        github-token: $GITHUB_TOKEN
-        #api_key:
-          # GITHUB_TOKEN for rasa/scoop-directory:
-          # secure: "UPlp9i8MMDYSAl+pN3tbfwoZFW/l0liI7Mk8nz3n7gKExN/9el8v3pW/oNk30YeQ5+pNgXu82Wqu9ecRAGDo7+e2oeiY64RG9oioWf5VN2FV7UGO0PrE+40hY7jbJHrUubKemmO+yIPXroAt7TfvuSYeSZto1ENf7sVgAH7WmPi72H0NSgBtIe6zJuxdTR3Zt8rmL3vJK7jc73GmvRQl4Wo0Z2xjX2Nk28LpH/XAXXNjtjOO7cwAXNaSSWXqu/ANZGYNcitDkYxUuAAld5t2qciI7BAA9bWlC4rvI8x0LeGnYJAIi5/XTE82dyBtf2BlCBMWaAluUXm1nV4garR7uRe36h7STfPDwWN4c1WLdaKdgdDb5pP3vrS1PXK+F12j8efrPZ35PHZq8XlRH24de6or9uXpGaRA5GFm1eHqcOYTrnO1H75FTeCYhcULmobdULl8Z8Fenv2dvW0Yif+rDqOFlU9mXntyvMR+R5hPFPXeqEMSs2nQokwe/rDALl7wisiqeOeGro/J3YqBH3oXL7HMzYgyAAgG4CmVEB0DHmrDsEDs1Ixs18cuHwqIVQa0G9YBKeJ9lSyNyl0zqtOOBHxdNWYeyKCq4jhTmKpVArBMO4tpHVE8LSBwy1Gq4iKGekST9DklFsblB72dgeYsc+7I6IafLcdEllAedsIuvRI="
+  - script: make all
+  - stage: Run Test Coverage
+    script: make cover
+    after_success: bash <(curl -s https://codecov.io/bash)
+  - stage: Build Release
+    script:
+    - make release
+    - echo "Deploying to GitHub releases ..."
+    deploy:
+      provider: releases
+      file:
+      - cross/feedster-darwin-amd64
+      - cross/feedster-darwin-amd64.md5
+      - cross/feedster-darwin-amd64.sha256
+      - cross/feedster-darwin-386
+      - cross/feedster-darwin-386.md5
+      - cross/feedster-darwin-386.sha256
+      - cross/feedster-freebsd-amd64
+      - cross/feedster-freebsd-amd64.md5
+      - cross/feedster-freebsd-amd64.sha256
+      - cross/feedster-freebsd-386
+      - cross/feedster-freebsd-386.md5
+      - cross/feedster-freebsd-386.sha256
+      - cross/feedster-linux-arm
+      - cross/feedster-linux-arm.md5
+      - cross/feedster-linux-arm.sha256
+      - cross/feedster-linux-arm64
+      - cross/feedster-linux-arm64.md5
+      - cross/feedster-linux-arm64.sha256
+      - cross/feedster-linux-amd64
+      - cross/feedster-linux-amd64.md5
+      - cross/feedster-linux-amd64.sha256
+      - cross/feedster-linux-386
+      - cross/feedster-linux-386.md5
+      - cross/feedster-linux-386.sha256
+      - cross/feedster-solaris-amd64
+      - cross/feedster-solaris-amd64.md5
+      - cross/feedster-solaris-amd64.sha256
+      - cross/feedster-windows-amd64.exe
+      - cross/feedster-windows-amd64.exe.md5
+      - cross/feedster-windows-amd64.exe.sha256
+      - cross/feedster-windows-386.exe
+      - cross/feedster-windows-386.exe.md5
+      - cross/feedster-windows-386.exe.sha256
+      skip_cleanup: true
+      on:
+        tags: true
+      github-token: "$GITHUB_TOKEN"
+      api_key:
+        secure: "vFbhQ3E1803n+/PBzNaWGyPiSyaqSugMC0paKKe27xb3uP9bz1F3lA/i43QUMpC37cx/EnkanHNBwzYcaqrxL7FcxYfrVM0Jw/raVLTrnuaeQkhmieqdyhGcmfe5OCntaKp3cNJAWCTNKDMxU/lm45rqJC3U7d7b+vFUk9HjNM0qIFVlq1fHj8TkSPP2jq05yj5FpEY63GiwXrb2WvGn1dPEE6+l6jUDrv5gryl9EVE2d2eE4DoFpPJhAjxJf6j+H3LhTvZ69BHz3qqMXmrQM3z8kLzVmR+ohXITNj29YPv4asl3F8rNqOplY8uRyRujyvA6nmaJS0cA6XqWvLPmAk42/rcw3Jl2GRltZmUjL7p9pcJm3IH/Gt8vAk4RjLELfbYlmX0QU/ASeOgMnbOSYNkXJqnNf6XZLkAi+m7+ckuMpis0bK/BbKa2l6voSRzTdI6t2u/YBelrWb0/2bgKgiqLbR7AmMJsmv9Equ+YZ33m02VVKg81VBEl8Y/VSWK42wXpgtCWWz/lFJAJceX2l1yjhS2di4xmENjMmbzQr0BIpXRFS8vcNtXmMdieSOgjlmzT9s+Bgh4sLnyzzcpxO+y9ylZHi2CuKY+sWUNIeVP5LBBgsCjomtui94lugJj/TTWi6RgplK2IniJBzJAODU2zP1VFQmImOX50B5WrmSM="
+env:
+  secure: CI25y1d8ZmegnXvfZBZCLgV3DZ0A7+PnZqI+EsGRenivcRRXc/6ZKlROHIPqjs5Ko1U9jxQ0J5cGkEohF5NUltHBYZYNdr0RX+piyFbQP4O6WJtsH08mFP9cYNin7YqTc4/TvAzObSrnfSXid6vwsCj2POQv1xq6fJZ4Ek3YDbaBa2+O2OG77GuWaQJtyrsPwpF/yxh6+AgZdaOCgcGua9Kogc7Gk76g5Z2/FmU8cWcCJQLqBDARakmmuRP8VXDA2UhCyHQ6FEabpFzfzVlQ32PAypJV50EEtR6H64BBag7QGq6fwgKKHAx9MdMDJJteDmYlA9+PXAxTzJFT/4UdKj3YPLGySSyZKqNwskC5SGfxB/EDUdKEwIzqRQPkfysm6XBMDQsQ+8kNjX61Zxh4osVXZ6ax/nsSG+301QM2aiNbdHw26lUlqDXrpSoZU9TT7d7ub7vO6AOx2foOFIjUHISLd52YWFVQzOnxYORqi/KBk7i8epvCz4KxpD/Juc9+onZIqZ6sRWi+sF8C2LIA/lZ/E5pCgImEXYlC/fDtTSN78HnpPNrt5lE93Lnw0EAYHUY0oolPhKqQalzdE/jXepxYb2sVuaqqe/Wsw5QlafiTzZh0vFDRkhmDwoNGjZqxQUhfa/2bTs0RDyEUawnq7qK5Myx91Vl5nq1DREEkvD4=
