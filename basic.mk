@@ -114,11 +114,11 @@ install: prebuild ## Installs the executable or package.
 define buildpretty
 mkdir -p $(BUILDDIR)/$(1)/$(2);
 GOOS=$(1) GOARCH=$(2) CGO_ENABLED=$(CGO_ENABLED) $(GO) build \
-	 -o $(BUILDDIR)/$(1)/$(2)/$(NAME)$(if $(findstring windows,$(1)),$(EXE_EXT)) \
+	 -o $(BUILDDIR)/$(1)/$(2)/$(NAME)$(if $(findstring windows,$(1)),.exe) \
 	 -a -tags "$(BUILDTAGS) static_build netgo" \
 	 -installsuffix netgo ${GO_LDFLAGS_STATIC} .;
-md5sum $(BUILDDIR)/$(1)/$(2)/$(NAME)$(if $(findstring windows,$(1)),$(EXE_EXT)) > $(BUILDDIR)/$(1)/$(2)/$(NAME)$(if $(findstring windows,$(1)),$(EXE_EXT)).md5;
-$(SHA256SUM) $(BUILDDIR)/$(1)/$(2)/$(NAME)$(if $(findstring windows,$(1)),$(EXE_EXT)) > $(BUILDDIR)/$(1)/$(2)/$(NAME)$(if $(findstring windows,$(1)),$(EXE_EXT)).sha256;
+md5sum $(BUILDDIR)/$(1)/$(2)/$(NAME)$(if $(findstring windows,$(1)),.exe) > $(BUILDDIR)/$(1)/$(2)/$(NAME)$(if $(findstring windows,$(1)),.exe).md5;
+$(SHA256SUM) $(BUILDDIR)/$(1)/$(2)/$(NAME)$(if $(findstring windows,$(1)),.exe) > $(BUILDDIR)/$(1)/$(2)/$(NAME)$(if $(findstring windows,$(1)),.exe).sha256;
 endef
 
 .PHONY: cross
@@ -129,11 +129,11 @@ cross: *.go VERSION.txt prebuild ## Builds the cross-compiled binaries, creating
 define buildrelease
 echo -n;
 GOOS=$(1) GOARCH=$(2) CGO_ENABLED=$(CGO_ENABLED) $(GO) build \
-	 -o $(BUILDDIR)/$(NAME)-$(1)-$(2)$(if $(findstring windows,$(1)),$(EXE_EXT)) \
+	 -o $(BUILDDIR)/$(NAME)-$(1)-$(2)$(if $(findstring windows,$(1)),.exe) \
 	 -a -tags "$(BUILDTAGS) static_build netgo" \
 	 -installsuffix netgo ${GO_LDFLAGS_STATIC} .;
-md5sum $(BUILDDIR)/$(NAME)-$(1)-$(2)$(if $(findstring windows,$(1)),$(EXE_EXT)) > $(BUILDDIR)/$(NAME)-$(1)-$(2)$(if $(findstring windows,$(1)),$(EXE_EXT)).md5;
-$(SHA256SUM) $(BUILDDIR)/$(NAME)-$(1)-$(2)$(if $(findstring windows,$(1)),$(EXE_EXT)) > $(BUILDDIR)/$(NAME)-$(1)-$(2)$(if $(findstring windows,$(1)),$(EXE_EXT)).sha256;
+md5sum $(BUILDDIR)/$(NAME)-$(1)-$(2)$(if $(findstring windows,$(1)),.exe) > $(BUILDDIR)/$(NAME)-$(1)-$(2)$(if $(findstring windows,$(1)),.exe).md5;
+$(SHA256SUM) $(BUILDDIR)/$(NAME)-$(1)-$(2)$(if $(findstring windows,$(1)),.exe) > $(BUILDDIR)/$(NAME)-$(1)-$(2)$(if $(findstring windows,$(1)),.exe).sha256;
 endef
 
 .PHONY: release
