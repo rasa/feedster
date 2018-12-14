@@ -85,14 +85,10 @@ var initDefaults = &Default{
 	DiscNumber:    "1",
 	Explicit:      "no",
 	Ffprobe:       "ffprobe",
-	//Image:         defaultImage,
 	Language: "en-us",
-	// OutputFile:    "default.xml",
-	// PodcastFile:   "podcast.yaml",
 	TotalDiscs:  "true",
 	TotalTracks: "true",
 	TrackNo:     "1",
-	// TracksFile:     "tracks.csv",
 	TTL: "1",
 }
 
@@ -992,7 +988,7 @@ func processYAML(yamlFile string) {
 	}
 
 	if tracksFile == "" {
-		log.Fatalf("No tracks_file defined in %s\n", yamlFile)
+		log.Fatalf("No tracks_file defined in %s\n!", yamlFile)
 	}
 
 	ext := strings.ToLower(filepath.Ext(tracksFile))
