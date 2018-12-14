@@ -85,11 +85,11 @@ var initDefaults = &Default{
 	DiscNumber:    "1",
 	Explicit:      "no",
 	Ffprobe:       "ffprobe",
-	Language: "en-us",
-	TotalDiscs:  "true",
-	TotalTracks: "true",
-	TrackNo:     "1",
-	TTL: "1",
+	Language:      "en-us",
+	TotalDiscs:    "true",
+	TotalTracks:   "true",
+	TrackNo:       "1",
+	TTL:           "1",
 }
 
 var defaults = initDefaults
