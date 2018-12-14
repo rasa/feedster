@@ -32,7 +32,8 @@ type Track struct { // Our example struct, you can use "-" to ignore a field
 	Duration             string
 	DurationMilliseconds int64
 	// fileSize is determined via os.Stat()
-	FileSize int64
+	FileSize         int64
+	OriginalFileSize int64
 	// modTime is determined via os.Stat()
 	ModTime int64
 }
@@ -100,9 +101,6 @@ func (f *Track) Set(fieldName string, fieldValue string) bool {
 // IsValid returns true if the track should be processed/exported
 func (f *Track) IsValid() bool {
 	if f.Filename == "" {
-		return false
-	}
-	if f.Title == "" {
 		return false
 	}
 	if f.DurationMilliseconds < minMilliseconds {

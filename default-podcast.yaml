@@ -1,0 +1,86 @@
+# default-podcast.yaml
+
+# Required fields:
+
+title:
+link:
+description:
+
+# Optional fields:
+
+iauthor:
+
+iowner:
+  name:
+  email:
+
+category:
+
+copyright:
+# Xcopyright: Copyright © & ℗ 2018, Lisa Walford. All rights reserved.
+
+isubtitle:
+
+isummary:
+ text:
+
+image:
+  url:
+  #link:
+  #title:
+  # url: image of podcast
+  # height: extracted from image (integer)
+  #height: 0
+  # width: extracted from image (integer)
+  #width: 0
+
+# explicit: default: no
+iexplicit:
+
+# complete: default: yes
+icomplete:
+
+# language: default: none
+language:
+
+iblock:
+cloud:
+docs:
+iduration:
+inewfeedurl:
+rating:
+skiphours:
+skipdays:
+
+#textinput:
+  # title:
+  # description:
+  # name:
+  # link:
+
+# Set by feedster:
+
+atomlink:
+  href:
+  # rel:
+  # type:
+
+# managingEditor: default: email
+managingeditor:
+
+# webMaster: default: email
+webmaster:
+
+# ttl: numeric: default: 1
+# ttl:
+
+# generator:
+# overwritten:
+# guid:
+
+# format: Tue, 6 Nov 2018 15:15:00 GMT
+lastbuilddate:
+pubdate:
+
+# not used per https://github.com/eduncan911/podcast/blob/master/podcast.go#L223
+# iimage:

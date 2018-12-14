@@ -14,6 +14,12 @@ import (
 	"golang.org/x/text/language"
 )
 
+func basename(filename string) string {
+	ext := path.Ext(filename)
+	filename = strings.TrimSuffix(filename, ext)
+	return filename
+}
+
 func bCF47ToISO3(BCF47 string) string {
 	lang, err := language.Parse(BCF47)
 	switch e := err.(type) {

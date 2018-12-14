@@ -32,12 +32,16 @@ import (
 
 const (
 	copyrightDescription = "Copyright"
-	defaultConfigYAML    = "config.yaml"
-	defaultImage         = "default.jpg"
+	defaultImageExt      = ".jpg"
 	defaultLogLevel      = log.InfoLevel
 	defaultMimeType      = "image/jpeg"
+	defaultYAML          = "default.yaml"
 	durationMask         = "%02d:%02d:%02d"
 	localYAML            = "local.yaml"
+
+	outputFileMask  = "%s.xml"
+	podcastFileMask = "%s-podcast.yaml"
+	tracksFileMask  = "%s-tracks%s"
 
 	imageWidthMin  = 1400
 	imageHeightMin = 1400
@@ -60,37 +64,75 @@ type Default struct {
 	Ffprobe        string `yaml:"ffprobe,omitempty"`
 	Generator      string `yaml:"generator,omitempty"`
 	Image          string `yaml:"image,omitempty"`
-	InputFile      string `yaml:"input_file,omitempty"`
 	Language       string `yaml:"language,omitempty"`
 	ManagingEditor string `yaml:"managingeditor,omitempty"`
 	OutputFile     string `yaml:"output_file,omitempty"`
+	PodcastFile    string `yaml:"podcast_file,omitempty"`
 	RenameMask     string `yaml:"rename_mask,omitempty"`
-	SettingsFile   string `yaml:"settings_file,omitempty"`
 	TotalDiscs     string `yaml:"total_discs,omitempty"`
 	TotalTracks    string `yaml:"total_tracks,omitempty"`
 	TrackNo        string `yaml:"track_no,omitempty"`
+	TracksFile     string `yaml:"tracks_file,omitempty"`
 	TTL            string `yaml:"ttl,omitempty"`
 	WebMaster      string `yaml:"webmaster,omitempty"`
 	totalDiscs     bool
 	totalTracks    bool
 }
 
-var defaults = &Default{
+var initDefaults = &Default{
 	Complete:      "yes",
 	CopyrightMask: "Copyright (c) & (p) %d, %s", // or: Copyright © & ℗ %d, %s
 	DiscNumber:    "1",
 	Explicit:      "no",
 	Ffprobe:       "ffprobe",
-	Image:         defaultImage,
-	InputFile:     "default.csv",
-	Language:      "en-us",
-	OutputFile:    "default.xml",
-	SettingsFile:  "settings.yaml",
-	TotalDiscs:    "true",
-	TotalTracks:   "true",
-	TrackNo:       "1",
-	TTL:           "1",
+	//Image:         defaultImage,
+	Language: "en-us",
+	// OutputFile:    "default.xml",
+	// PodcastFile:   "podcast.yaml",
+	TotalDiscs:  "true",
+	TotalTracks: "true",
+	TrackNo:     "1",
+	// TracksFile:     "tracks.csv",
+	TTL: "1",
 }
+
+var defaults = initDefaults
+
+var trackFileExtensions = []string{
+	".csv",
+	".xlsx",
+	".xls",
+}
+
+/*
+
+call tree:
+
+main
+	logInit
+	processYAML
+		loadDefaults
+		setDefaults
+		processImage
+		readCSV or readXLS
+		preProcessTrack
+			normalizeTrack
+			setTrackDefaults
+		processTrack
+			normalizeTrack
+			setTags
+				totalDiscs
+				totalTracks
+				addTextFrame
+			addFrontCover
+		createdDate
+		updatedDate
+		setPodcast
+		addTrack
+			newName
+			copyFile
+		validTracks
+*/
 
 func l(level log.Level) bool {
 	return log.IsLevelEnabled(level)
@@ -130,10 +172,27 @@ func normalizeTrack(track *Track) (err error) {
 	return nil
 }
 
-func setTrackDefaults(track *Track, lastTrack *Track, year int) bool {
+func setCopyright(track *Track, defaults *Default, year int) {
+	if track.Copyright == "" {
+		if defaults.Copyright != "" {
+			// track.Copyright := html.EscapeString(defaults.Copyright)
+			track.Copyright = defaults.Copyright
+		} else {
+			// track.Copyright = fmt.Sprintf(html.EscapeString(defaults.CopyrightMask), year, track.Artist)
+			track.Copyright = fmt.Sprintf(defaults.CopyrightMask, year, track.Artist)
+		}
+	}
+}
+
+func setTrackDefaults(track *Track, lastTrack *Track) bool {
 	if track.Title == "" {
-		log.Infof("Skipping track %s: title is empty\n", track.Filename)
-		return false
+		if track.Filename != "" {
+			track.Title = basename(path.Base(track.Filename))
+		}
+	}
+	if track.Description == "" {
+		// per https://github.com/eduncan911/podcast/blob/master/podcast.go#L270
+		track.Description = track.Title
 	}
 	if track.Artist == "" {
 		track.Artist = lastTrack.Artist
@@ -169,24 +228,40 @@ func setTrackDefaults(track *Track, lastTrack *Track, year int) bool {
 	if track.Copyright == "" {
 		track.Copyright = lastTrack.Copyright
 	}
-	if track.Copyright == "" {
-		if defaults.Copyright != "" {
-			// track.Copyright := html.EscapeString(defaults.Copyright)
-			track.Copyright = defaults.Copyright
-		} else {
-			// track.Copyright = fmt.Sprintf(html.EscapeString(defaults.CopyrightMask), year, track.Artist)
-			track.Copyright = fmt.Sprintf(defaults.CopyrightMask, year, track.Artist)
-		}
-	}
+
 	if track.Genre == "" {
 		track.Genre = lastTrack.Genre
 	}
-	if track.Year == "" {
-		track.Year = lastTrack.Year
+
+	var year int
+
+	if track.Filename == "" {
+		if track.Year != "" {
+			year, _ = strconv.Atoi(track.Year)
+		} else {
+			year := time.Now().Year()
+			track.Year = strconv.Itoa(year)
+		}
+		setCopyright(track, defaults, year)
+		track.DurationMilliseconds = 0
+		track.Duration = "00:00:00"
+		return false
 	}
+
+	fi, err := os.Stat(track.Filename)
+	if err != nil {
+		log.Fatalf("Cannot open %s: %s", track.Filename, err)
+	}
+	track.ModTime = fi.ModTime().UnixNano()
+	track.OriginalFileSize = fi.Size()
+	track.FileSize = fi.Size()
+
 	if track.Year == "" {
+		year = fi.ModTime().Year()
 		track.Year = strconv.Itoa(year)
 	}
+
+	setCopyright(track, defaults, year)
 
 	cmd := defaults.Ffprobe
 	out, err := exec.Command(cmd, track.Filename).CombinedOutput()
@@ -198,8 +273,10 @@ func setTrackDefaults(track *Track, lastTrack *Track, year int) bool {
 	b := re.FindSubmatch(out)
 
 	if len(b) <= 3 {
-		log.Warningf("Failed to get duration for %s", track.Filename)
-		return true
+		log.Warnf("Failed to get duration for %s", track.Filename)
+		track.DurationMilliseconds = 0
+		track.Duration = "00:00:00"
+		return false
 	}
 
 	hours, _ := strconv.Atoi(string(b[1]))
@@ -271,13 +348,19 @@ func totalTracks(tracks []*Track, discNumber string) (totalTracks int) {
 }
 
 func addTextFrame(tag *id3v2.Tag, id string, text string) {
-	tag.AddTextFrame(tag.CommonID(id), id3v2.EncodingUTF8, text)
+	if text == "" {
+		return
+	}
+	tid := tag.CommonID(id)
+	if id == "" {
+		log.Warnf("Unknown id3v2 ID: '%s'\n", id)
+	}
+	tag.AddTextFrame(tid, id3v2.EncodingUTF8, text)
 }
 
 func setTags(tag *id3v2.Tag, track *Track, defaults *Default, tracks []*Track) {
 	//tag.SetDefaultEncoding(id3v2.EncodingUTF8)
 	//tag.SetVersion(4)
-
 
 	totalDiscs := totalDiscs(tracks)
 	totalTracks := totalTracks(tracks, track.DiscNumber)
@@ -292,13 +375,13 @@ func setTags(tag *id3v2.Tag, track *Track, defaults *Default, tracks []*Track) {
 		trackNumber = fmt.Sprintf("%s/%d", trackNumber, totalTracks)
 	}
 
-	log.Debugf("totalDiscs=%d\n", totalDiscs)
-	log.Debugf("totalTracks=%d\n", totalTracks)
-	log.Debugf("discNumber=%s\n", discNumber)
-	log.Debugf("trackNumber=%s\n", trackNumber)
+	log.Tracef("totalDiscs=%d\n", totalDiscs)
+	log.Tracef("totalTracks=%d\n", totalTracks)
+	log.Tracef("discNumber=%s\n", discNumber)
+	log.Tracef("trackNumber=%s\n", trackNumber)
 
 	// user defined fields:
-	
+
 	tag.SetAlbum(track.AlbumTitle)
 	tag.SetArtist(track.Artist)
 	tag.SetGenre(track.Genre)
@@ -312,38 +395,36 @@ func setTags(tag *id3v2.Tag, track *Track, defaults *Default, tracks []*Track) {
 	//panics:
 	//tag.AddTextFrame(tag.CommonID("Comments"), id3v2.EncodingUTF8, track.Copyright)
 	addTextFrame(tag, "Part of a set", discNumber)
-	if defaults.EncodedBy != "" {
-		addTextFrame(tag, "Encoded by", defaults.EncodedBy)
-	}
+	addTextFrame(tag, "Encoded by", defaults.EncodedBy)
 	addTextFrame(tag, "Language", defaults.Language)
-	sub := ""
+
+	subtitle := ""
 	if track.Subtitle != "" {
-		sub = track.Subtitle
+		subtitle = track.Subtitle
 	}
 	if track.Description != "" {
-		if sub != "" {
-			sub += " / "
+		if subtitle != "" {
+			subtitle += " / "
 		}
-		sub += track.Description
+		subtitle += track.Description
 	}
-	if sub != "" {
-		addTextFrame(tag, "Subtitle/Description refinement", sub)
-	}
+	addTextFrame(tag, "Subtitle/Description refinement", subtitle)
+
 	addTextFrame(tag, "Track number/Position in set", trackNumber)
 
 	// system defined fields:
-	
+
 	t := time.Unix(0, track.ModTime)
 	MMDD := fmt.Sprintf("%02d%02d", t.Month(), t.Day())
 	HHMM := fmt.Sprintf("%02d%02d", t.Hour(), t.Minute())
-	
+
 	addTextFrame(tag, "Date", MMDD)
 	addTextFrame(tag, "Time", HHMM)
-	
+
 	addTextFrame(tag, "Original filename", track.OriginalFilename)
-	addTextFrame(tag, "Size", strconv.FormatInt(track.FileSize, 10))
+	addTextFrame(tag, "Size", strconv.FormatInt(track.OriginalFileSize, 10))
 	addTextFrame(tag, "Length", strconv.FormatInt(track.DurationMilliseconds, 10))
-	
+
 	// Set comment frame.
 	comment := id3v2.CommentFrame{
 		Encoding:    id3v2.EncodingUTF8,
@@ -351,15 +432,13 @@ func setTags(tag *id3v2.Tag, track *Track, defaults *Default, tracks []*Track) {
 		Description: copyrightDescription,
 		Text:        track.Copyright,
 	}
-	tag.AddCommentFrame(comment)	
+	tag.AddCommentFrame(comment)
 }
 
 func addFrontCover(filename string) (pic *id3v2.PictureFrame, err error) {
 	_, err = os.Stat(filename)
 	if err != nil {
-		if filename != defaultImage {
-			log.Warningf("Cannot read %s: %s", filename, err)
-		}
+		log.Warnf("Cannot read %s: %s", filename, err)
 		return nil, nil
 	}
 
@@ -367,7 +446,7 @@ func addFrontCover(filename string) (pic *id3v2.PictureFrame, err error) {
 	mimeType := mime.TypeByExtension(ext)
 
 	if mimeType == "" {
-		log.Warningf("Unknown image format %s: %s", filename, err)
+		log.Warnf("Unknown image format %s: %s", filename, err)
 		mimeType = defaultMimeType
 	}
 
@@ -388,37 +467,21 @@ func addFrontCover(filename string) (pic *id3v2.PictureFrame, err error) {
 }
 
 func preProcessTrack(trackIndex int, track *Track, lastTrack *Track, tracks []*Track) {
+	if track.Filename != "" {
+		log.Infof("Preprocessing track %d: %s\n", trackIndex, track.Filename)
+		normalizeTrack(track)
+	}
+
+	setTrackDefaults(track, lastTrack)
+
 	if track.Filename == "" {
 		log.Infof("Skipping track %d: %s\n", trackIndex, "Filename is empty")
-		return
 	}
-
-	log.Infof("Preprocessing track %d: %s\n", trackIndex, track.Filename)
-
-	normalizeTrack(track)
-
-	fi, err := os.Stat(track.Filename)
-	if err != nil {
-		log.Fatalf("Cannot open %s: %s", track.Filename, err)
-	}
-	track.ModTime = fi.ModTime().UnixNano()
-	track.FileSize = fi.Size()
-	year := fi.ModTime().Year()
-
-	setTrackDefaults(track, lastTrack, year)
 }
 
 func processTrack(trackIndex int, track *Track, lastTrack *Track, tracks []*Track) {
 	log.Infof("Processing track %d: %s\n", trackIndex, track.Filename)
 
-	normalizeTrack(track)
-
-	fi, err := os.Stat(track.Filename)
-	if err != nil {
-		log.Fatalf("Cannot open %s: %s", track.Filename, err)
-	}
-	modTime := fi.ModTime()
-	track.ModTime = modTime.UnixNano()
 	tag, err := id3v2.Open(track.Filename, id3v2.Options{Parse: true})
 	if err != nil {
 		log.Fatalf("Cannot open %s: %s", track.Filename, err)
@@ -426,20 +489,32 @@ func processTrack(trackIndex int, track *Track, lastTrack *Track, tracks []*Trac
 
 	setTags(tag, track, defaults, tracks)
 
-	pic, err := addFrontCover(defaults.Image)
-	if err == nil && pic != nil {
-		tag.AddAttachedPicture(*pic)
+	if defaults.Image != "" {
+		pic, err := addFrontCover(defaults.Image)
+		if err == nil && pic != nil {
+			tag.AddAttachedPicture(*pic)
+		}
 	}
+
 	// Write it to file.
 	err = tag.Save()
 	if err != nil {
 		log.Fatalf("Cannot save tags for %s: %s", track.Filename, err)
 	}
 	tag.Close()
-	err = os.Chtimes(track.Filename, modTime, modTime)
-	if err != nil {
-		log.Fatalf("Cannot set time for %s: %s", track.Filename, err)
+	if track.ModTime != 0 {
+		modTime := time.Unix(0, track.ModTime)
+		err = os.Chtimes(track.Filename, modTime, modTime)
+		if err != nil {
+			log.Warnf("Cannot set time for %s: %s", track.Filename, err)
+		}
 	}
+
+	fi, err := os.Stat(track.Filename)
+	if err != nil {
+		log.Fatalf("Cannot open %s: %s", track.Filename, err)
+	}
+	track.FileSize = fi.Size()
 }
 
 func setDefaults(fp *fpodcast.Podcast, defaults *Default) {
@@ -463,6 +538,7 @@ func setPodcast(p *podcast.Podcast, fp *fpodcast.Podcast) {
 	p.Title = fp.Title
 	p.Link = fp.Link
 	p.Description = fp.Description
+
 	// p.Category = fp.Category
 	re := regexp.MustCompile(`^([^,]*),(.*)$`)
 	b := re.FindStringSubmatch(fp.Category)
@@ -476,52 +552,56 @@ func setPodcast(p *podcast.Podcast, fp *fpodcast.Podcast) {
 	p.Cloud = fp.Cloud
 	p.Copyright = fp.Copyright
 	p.Docs = fp.Docs
+
 	if fp.Generator != "" {
 		p.Generator = fp.Generator
 	}
+
 	p.Language = fp.Language
-	p.LastBuildDate = fp.LastBuildDate
+
+	if fp.LastBuildDate != "" {
+		p.LastBuildDate = fp.LastBuildDate
+	}
+
 	p.ManagingEditor = fp.ManagingEditor
-	p.PubDate = fp.PubDate
+
+	if fp.PubDate != "" {
+		p.PubDate = fp.PubDate
+	}
+
 	p.Rating = fp.Rating
 	p.SkipHours = fp.SkipHours
 	p.SkipDays = fp.SkipDays
 	p.TTL = fp.TTL
 	p.WebMaster = fp.WebMaster
+
 	p.IAuthor = fp.IAuthor
-	// p.ISubtitle = fp.ISubtitle
-	//if fp.ISubtitle != "" {
 	p.AddSubTitle(fp.ISubtitle)
-	//}
 	p.IBlock = fp.IBlock
 	p.IDuration = fp.IDuration
 	p.IExplicit = fp.IExplicit
 	p.IComplete = fp.IComplete
 	p.INewFeedURL = fp.INewFeedURL
 
-	if fp.Image.URL != "" {
-		p.AddImage(fp.Image.URL)
-	}
-	// image := podcast.Image(*fp.Image)
-	// p.Image = &image
-	/*
-		if fp.TextInput.Name != "" {
-			textInput := podcast.TextInput(*fp.TextInput)
-			p.TextInput = &textInput
+	if fp.Image != nil {
+		if fp.Image.URL != "" {
+			p.AddImage(fp.Image.URL)
 		}
-	*/
-	if fp.AtomLink.HREF != "" {
-		p.AddAtomLink(fp.AtomLink.HREF)
 	}
-	// atomLink := podcast.AtomLink(*fp.AtomLink)
-	// p.AtomLink = &atomLink
-	//summary := podcast.ISummary(*fp.ISummary)
-	// p.ISummary = &summary
-	p.AddSummary(fp.ISummary.Text)
-	//iimage := podcast.IImage(*fp.IImage)
-	//p.IImage = &iimage
-	iowner := podcast.Author(*fp.IOwner)
-	p.IOwner = &iowner
+
+	if fp.AtomLink != nil {
+		if fp.AtomLink.HREF != "" {
+			p.AddAtomLink(fp.AtomLink.HREF)
+		}
+	}
+
+	if fp.ISummary != nil {
+		p.AddSummary(fp.ISummary.Text)
+	}
+
+	if fp.IOwner != nil {
+		p.AddAuthor(fp.IOwner.Name, fp.IOwner.Email)
+	}
 }
 
 func newName(track *Track, defaults *Default) (newName string, err error) {
@@ -565,21 +645,21 @@ func newName(track *Track, defaults *Default) (newName string, err error) {
 		case "t":
 			b, err := strconv.ParseBool(v)
 			if err != nil {
-				log.Warningln(err)
+				log.Warnln(err)
 				return "", err
 			}
 			s = fmt.Sprintf(format, b)
 		case "b", "c", "d", "o", "q", "x", "X", "U":
 			i, err := strconv.ParseInt(v, 10, 64)
 			if err != nil {
-				log.Warningln(err)
+				log.Warnln(err)
 				return "", err
 			}
 			s = fmt.Sprintf(format, i)
 		case "e", "E", "f", "F", "g", "G":
 			f, err := strconv.ParseFloat(v, 64)
 			if err != nil {
-				log.Warningln(err)
+				log.Warnln(err)
 				return "", err
 			}
 			s = fmt.Sprintf(format, f)
@@ -607,6 +687,7 @@ func addTrack(p *podcast.Podcast, track *Track, defaults *Default) {
 		ISubtitle:   track.Subtitle,
 		PubDate:     &pubDate,
 	}
+	// @TODO(rasa) change to p.Image.URL
 	item.AddImage(defaults.BaseURL + defaults.Image)
 	if track.Duration != "" {
 		item.IDuration = track.Duration
@@ -637,24 +718,36 @@ func addTrack(p *podcast.Podcast, track *Track, defaults *Default) {
 	}
 }
 
-func processImage(fp *fpodcast.Podcast) (err error) {
-	err = nil
+func processImage(fp *fpodcast.Podcast, defaults *Default) (err error) {
+	if defaults.Image == "" {
+		if fp.Image == nil {
+			return nil
+		}
+		if fp.Image.URL == "" {
+			return nil
+		}
+	}
 
-	if fp.Image.URL == "" {
-		return err
+	if defaults.Image != "" {
+		if fp.Image == nil {
+			fp.Image = &fpodcast.Image{}
+		}
+		if fp.Image.URL == "" {
+			fp.Image.URL = defaults.BaseURL + defaults.Image
+		}
 	}
 
 	basename := path.Base(fp.Image.URL)
 	reader, err := os.Open(basename)
 	if err != nil {
-		log.Warningf("Cannot open %s: %s", basename, err)
+		log.Warnf("Cannot open %s: %s", basename, err)
 		return err
 	}
 	defer reader.Close()
 
 	im, _, err := image.DecodeConfig(reader)
 	if err != nil {
-		log.Warningf("Cannot read %s: %v\n", basename, err)
+		log.Warnf("Cannot read %s: %v\n", basename, err)
 		return err
 	}
 
@@ -663,19 +756,19 @@ func processImage(fp *fpodcast.Podcast) (err error) {
 
 	if fp.Image.Width < imageWidthMin {
 		err = fmt.Errorf("image %s's width (%d) needs to be %d or greater", basename, fp.Image.Width, imageWidthMin)
-		log.Warningln(err)
+		log.Warnln(err)
 	}
 	if fp.Image.Width > imageWidthMax {
 		err = fmt.Errorf("image %s's width (%d) needs to be %d or less", basename, fp.Image.Width, imageWidthMax)
-		log.Warningln(err)
+		log.Warnln(err)
 	}
 	if fp.Image.Height < imageHeightMin {
 		err = fmt.Errorf("image %s's height (%d) needs to be %d or greater", basename, fp.Image.Height, imageHeightMin)
-		log.Warningln(err)
+		log.Warnln(err)
 	}
 	if fp.Image.Height > imageHeightMax {
 		err = fmt.Errorf("image %s's height (%d) needs to be %d or less", basename, fp.Image.Height, imageHeightMax)
-		log.Warningln(err)
+		log.Warnln(err)
 	}
 
 	return err
@@ -788,16 +881,27 @@ func validTracks(tracks []*Track) (rv uint) {
 	return rv
 }
 
-func loadDefaults(configFile string) {
-	log.Infof("Reading %s\n", configFile)
-	configData, err := ioutil.ReadFile(configFile)
+func loadDefaults(yamlFile string, genFilenames bool) {
+	log.Infof("Reading %s\n", yamlFile)
+	configData, err := ioutil.ReadFile(yamlFile)
 	if err != nil {
-		log.Fatalf("Cannot read %s: %s", configFile, err)
+		log.Fatalf("Cannot read %s: %s", yamlFile, err)
 	}
 
 	err = yaml.Unmarshal(configData, defaults)
 	if err != nil {
-		log.Fatalf("Cannot process %s: %s", configFile, err)
+		log.Fatalf("Cannot process %s: %s", yamlFile, err)
+	}
+
+	base := basename(yamlFile)
+
+	if defaults.Image == "" {
+		defaults.Image = base + defaultImageExt
+	}
+
+	if genFilenames {
+		defaults.OutputFile = fmt.Sprintf(outputFileMask, base)
+		defaults.PodcastFile = fmt.Sprintf(podcastFileMask, base)
 	}
 
 	if len(defaults.BaseURL) > 0 {
@@ -805,58 +909,51 @@ func loadDefaults(configFile string) {
 			defaults.BaseURL += "/"
 		}
 	}
+
 	defaults.totalDiscs, err = strconv.ParseBool(defaults.TotalDiscs)
 	if err != nil {
-		log.Fatalf("Parse error parsing total_discs in %s: %s", defaults.SettingsFile, err)
+		log.Fatalf("Parse error parsing total_discs in %s: %s", defaults.PodcastFile, err)
 	}
 	defaults.totalTracks, err = strconv.ParseBool(defaults.TotalTracks)
 	if err != nil {
-		log.Fatalf("Parse error parsing total_tracks in %s: %s", defaults.SettingsFile, err)
+		log.Fatalf("Parse error parsing total_tracks in %s: %s", defaults.PodcastFile, err)
 	}
 }
 
-func main() {
-	basename := filepath.Base(os.Args[0])
-	progname := strings.TrimSuffix(basename, filepath.Ext(basename))
-
-	fmt.Printf("%s: Version %s (%s)\n", progname, version.VERSION, version.GITCOMMIT)
-	fmt.Printf("Built with %s for %s/%s (%d CPUs/%d GOMAXPROCS)\n",
-		runtime.Version(),
-		runtime.GOOS,
-		runtime.GOARCH,
-		runtime.NumCPU(),
-		runtime.GOMAXPROCS(-1))
-
-	logLevel := flag.Int("log", int(defaultLogLevel), "set log verbosity\n(6=trace, 5=debug, 4=info, 3=warn, 2=error, 1=fatal)")
-
-	flag.Parse()
-
-	if *logLevel != int(defaultLogLevel) {
-		log.SetLevel(log.Level(*logLevel))
+func processYAML(yamlFile string) {
+	if yamlFile == "" {
+		log.Fatalln("Input file name is empty")
 	}
 
-	logInit()
+	defaults = initDefaults
 
-	loadDefaults(defaultConfigYAML)
+	loadDefaults(yamlFile, true)
 
 	dump("defaults@1=", defaults)
 
 	_, err := os.Stat(localYAML)
 	if err == nil {
-		loadDefaults(localYAML)
+		loadDefaults(localYAML, false)
 		dump("defaults@2=", defaults)
 	}
 
-	inputFile := defaults.InputFile
-	args := flag.Args()
-	if len(args) > 0 {
-		inputFile = args[0]
+	defaults.BaseURL = strings.Trim(defaults.BaseURL, " ")
+	if defaults.BaseURL == "" {
+		log.Fatalf("No base_url defined in %s", yamlFile)
 	}
 
-	log.Infof("Reading %s\n", defaults.SettingsFile)
-	yamlData, err := ioutil.ReadFile(defaults.SettingsFile)
+	if defaults.PodcastFile == "" {
+		log.Fatalf("No podcast_file defined in %s", yamlFile)
+	}
+
+	if defaults.OutputFile == "" {
+		log.Fatalf("No output_file defined in %s\n", yamlFile)
+	}
+
+	log.Infof("Reading %s\n", defaults.PodcastFile)
+	yamlData, err := ioutil.ReadFile(defaults.PodcastFile)
 	if err != nil {
-		log.Fatalf("Cannot read %s: %s", defaults.SettingsFile, err)
+		log.Fatalf("Cannot read %s: %s", defaults.PodcastFile, err)
 	}
 
 	var fp fpodcast.Podcast
@@ -867,25 +964,46 @@ func main() {
 
 	err = yaml.Unmarshal(yamlData, &fp)
 	if err != nil {
-		log.Fatalf("Cannot process %s: %s", defaults.SettingsFile, err)
+		log.Fatalf("Cannot process %s: %s", defaults.PodcastFile, err)
 	}
+	dump("fp@2=", fp)
 
 	// don't exit on image errors
-	_ = processImage(&fp)
+	_ = processImage(&fp, defaults)
 
-	dump("fp@2=", fp)
+	dump("fp@3=", fp)
 
 	var tracks []*Track
 
-	ext := strings.ToLower(filepath.Ext(inputFile))
+	tracksFile := defaults.TracksFile
+	if tracksFile == "" {
+		base := basename(yamlFile)
+
+		for _, ext := range trackFileExtensions {
+			tracksFile = fmt.Sprintf(tracksFileMask, base, ext)
+			_, err := os.Stat(tracksFile)
+			log.Debugf("Searching for %s\n", tracksFile)
+			if err == nil {
+				log.Debugf("Found %s\n", tracksFile)
+				break
+			}
+			tracksFile = ""
+		}
+	}
+
+	if tracksFile == "" {
+		log.Fatalf("No tracks_file defined in %s\n", yamlFile)
+	}
+
+	ext := strings.ToLower(filepath.Ext(tracksFile))
 
 	switch ext {
 	case ".csv":
-		tracks = readCSV(inputFile)
+		tracks = readCSV(tracksFile)
 	case ".xls", ".xlsx":
-		tracks = readXLS(inputFile)
+		tracks = readXLS(tracksFile)
 	default:
-		log.Fatalf("Unknown file format: '%s'\n", ext)
+		log.Fatalf("Unsupported format for tracks file %s: '%s'\n", tracksFile, ext)
 	}
 
 	dump("tracks@1=", tracks)
@@ -903,7 +1021,7 @@ func main() {
 
 	for i, track := range tracks {
 		if !track.IsValid() {
-			log.Infof("Skipping track %d: %s (%s)", i+1, track.Filename, track.Error())
+			log.Infof("Skipping track %d: %s: %s", i+1, track.Filename, track.Error())
 			continue
 		}
 
@@ -936,6 +1054,8 @@ func main() {
 
 	setPodcast(&p, &fp)
 
+	dump("p=", p)
+
 	for _, track := range tracks {
 		if !track.IsValid() {
 			continue
@@ -950,4 +1070,40 @@ func main() {
 		log.Fatalf("Cannot write to %s: %s", xmlFD.Name(), err)
 	}
 	log.Infof("Saved %d of %d tracks to %s", validTracks(tracks), len(tracks), defaults.OutputFile)
+}
+
+func main() {
+	basename := filepath.Base(os.Args[0])
+	progname := strings.TrimSuffix(basename, filepath.Ext(basename))
+
+	fmt.Printf("%s: Version %s (%s)\n", progname, version.VERSION, version.GITCOMMIT)
+	fmt.Printf("Built with %s for %s/%s (%d CPUs/%d GOMAXPROCS)\n",
+		runtime.Version(),
+		runtime.GOOS,
+		runtime.GOARCH,
+		runtime.NumCPU(),
+		runtime.GOMAXPROCS(-1))
+
+	logLevel := flag.Int("log", int(defaultLogLevel), "set log verbosity\n(6=trace, 5=debug, 4=info, 3=warn, 2=error, 1=fatal)")
+	logCaller := flag.Bool("logcaller", false, "log file/function/line")
+
+	flag.Parse()
+
+	if *logLevel != int(defaultLogLevel) {
+		log.SetLevel(log.Level(*logLevel))
+	}
+
+	if *logCaller {
+		log.SetReportCaller(true)
+	}
+	logInit()
+
+	if flag.NArg() == 0 {
+		processYAML(defaultYAML)
+		return
+	}
+
+	for _, arg := range flag.Args() {
+		processYAML(arg)
+	}
 }
