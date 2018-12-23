@@ -1,21 +1,10 @@
-# Set an output prefix, which is the local directory if not specified
 ifneq ($(OS),Windows_NT)
-	FIND?=find
 	# Set an output prefix, which is the local directory if not specified
 	PREFIX?=$(shell pwd)
-	STDERR?=/dev/stderr
-	SHA256SUM=sha256sum
 else
 	EXE_EXT?=.exe
-	CYGPATH?=$(shell where.exe cygpath.exe | tr "\\\\\\\\" "//")
-	FIND?=$(shell where find.exe | grep -E -iv "\\\\System32\\\\" | head -n 1 | tr "\\\\\\\\" "//")
-	PREFIX?=$(shell $(CYGPATH) -a -m .)
-	MSYS_ROOT?=C:/msys64
-	MSYS_ROOT:=$(shell echo '$(MSYS_ROOT)' | tr "\\\\\\\\" "//")
-	ifneq ($(wildcard $(MSYS_ROOT)/usr/bin/rm.exe),)
-		RM=$(MSYS_ROOT)/usr/bin/rm.exe -f
-	endif
-	SHA256SUM=$(shell where sha256sum | tr "\\\\\\\\" "//")
+	export PATH:="$(SystemDrive)/cygwin/bin:$(PATH)"
+	PREFIX?=$(shell cygpath -a -m .)
 endif
 
 # Set the build dir, where built cross-compiled binaries will be output
@@ -73,12 +62,12 @@ all: clean build fmt lint test staticcheck vet install ## Runs a clean, build, f
 .PHONY: fmt
 fmt: ## Verifies all files have been `gofmt`ed.
 	@echo "+ $@"
-	@gofmt -s -l . | grep -E -v '(\.pb\.go:|vendor)' | tee $(STDERR)
+	@gofmt -s -l . | grep -E -v '(\.pb\.go:|vendor)' | tee /dev/stderr
 
 .PHONY: lint
 lint: ## Verifies `golint` passes.
 	@echo "+ $@"
-	@golint ./... | grep -E -v '(\.pb\.go:|vendor)' | tee $(STDERR)
+	@golint ./... | grep -E -v '(\.pb\.go:|vendor)' | tee /dev/stderr
 
 .PHONY: test
 test: prebuild ## Runs the go tests.
@@ -88,12 +77,12 @@ test: prebuild ## Runs the go tests.
 .PHONY: vet
 vet: ## Verifies `go vet` passes.
 	@echo "+ $@"
-	@$(GO) vet $(shell $(GO) list ./... | grep -E -v '(\.pb\.go:|vendor)') | tee $(STDERR)
+	@$(GO) vet $(shell $(GO) list ./... | grep -E -v '(\.pb\.go:|vendor)') | tee /dev/stderr
 
 .PHONY: staticcheck
 staticcheck: ## Verifies `staticcheck` passes.
 	@echo "+ $@"
-	@staticcheck $(shell $(GO) list ./... | grep -E -v '(\.pb\.go:|vendor)') | tee $(STDERR)
+	@staticcheck $(shell $(GO) list ./... | grep -E -v '(\.pb\.go:|vendor)') | tee /dev/stderr
 
 .PHONY: cover
 cover: prebuild ## Runs go test with coverage.
@@ -118,7 +107,7 @@ GOOS=$(1) GOARCH=$(2) CGO_ENABLED=$(CGO_ENABLED) $(GO) build \
 	 -a -tags "$(BUILDTAGS) static_build netgo" \
 	 -installsuffix netgo ${GO_LDFLAGS_STATIC} .;
 md5sum $(BUILDDIR)/$(1)/$(2)/$(NAME)$(if $(findstring windows,$(1)),.exe) > $(BUILDDIR)/$(1)/$(2)/$(NAME)$(if $(findstring windows,$(1)),.exe).md5;
-$(SHA256SUM) $(BUILDDIR)/$(1)/$(2)/$(NAME)$(if $(findstring windows,$(1)),.exe) > $(BUILDDIR)/$(1)/$(2)/$(NAME)$(if $(findstring windows,$(1)),.exe).sha256;
+sha256sum $(BUILDDIR)/$(1)/$(2)/$(NAME)$(if $(findstring windows,$(1)),.exe) > $(BUILDDIR)/$(1)/$(2)/$(NAME)$(if $(findstring windows,$(1)),.exe).sha256;
 endef
 
 .PHONY: cross
@@ -133,7 +122,7 @@ GOOS=$(1) GOARCH=$(2) CGO_ENABLED=$(CGO_ENABLED) $(GO) build \
 	 -a -tags "$(BUILDTAGS) static_build netgo" \
 	 -installsuffix netgo ${GO_LDFLAGS_STATIC} .;
 md5sum $(BUILDDIR)/$(NAME)-$(1)-$(2)$(if $(findstring windows,$(1)),.exe) > $(BUILDDIR)/$(NAME)-$(1)-$(2)$(if $(findstring windows,$(1)),.exe).md5;
-$(SHA256SUM) $(BUILDDIR)/$(NAME)-$(1)-$(2)$(if $(findstring windows,$(1)),.exe) > $(BUILDDIR)/$(NAME)-$(1)-$(2)$(if $(findstring windows,$(1)),.exe).sha256;
+sha256sum $(BUILDDIR)/$(NAME)-$(1)-$(2)$(if $(findstring windows,$(1)),.exe) > $(BUILDDIR)/$(NAME)-$(1)-$(2)$(if $(findstring windows,$(1)),.exe).sha256;
 endef
 
 .PHONY: release
@@ -177,7 +166,7 @@ AUTHORS:
 .PHONY: vendor
 vendor: ## Updates the vendoring directory.
 	@$(RM) go.sum
-	@$(RM) -r vendor
+	@test -d vendor && $(RM) -r vendor
 	GO111MODULE=on $(GO) mod init || true
 	GO111MODULE=on $(GO) mod tidy
 	GO111MODULE=on $(GO) mod vendor
@@ -187,13 +176,13 @@ vendor: ## Updates the vendoring directory.
 clean: ## Cleanup any build binaries or packages.
 	@echo "+ $@"
 	$(RM) $(NAME)$(EXE_EXT)
-	$(RM) -r $(BUILDDIR)
+	-$(RM) -r $(BUILDDIR)
 
 .PHONY: gofmt
 gofmt: ## Format all .go files via `gofmt -s` (simplify)
 	@echo "+ $@"
 	@gofmt -s -l . | grep -E -v '(\.pb\.go:|vendor)' || true
-	$(FIND) . -iname '*.go' ! -ipath './vendor/*' | xargs gofmt -s -w
+	find . -iname '*.go' ! -ipath './vendor/*' | xargs gofmt -s -w
 
 .PHONY: mailmap
 mailmap: ## Generate committer list to add to .mailmap
