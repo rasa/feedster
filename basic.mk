@@ -166,7 +166,7 @@ AUTHORS:
 .PHONY: vendor
 vendor: ## Updates the vendoring directory.
 	@$(RM) go.sum
-	@test -d vendor && $(RM) -r vendor
+	@$(RM) -r vendor
 	GO111MODULE=on $(GO) mod init || true
 	GO111MODULE=on $(GO) mod tidy
 	GO111MODULE=on $(GO) mod vendor

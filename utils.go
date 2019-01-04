@@ -4,13 +4,13 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"log"
 	"os"
 	"path"
 	"runtime"
 	"strings"
 	"time"
 
+	log "github.com/sirupsen/logrus"
 	"golang.org/x/text/language"
 )
 
@@ -24,12 +24,12 @@ func bCF47ToISO3(BCF47 string) string {
 	lang, err := language.Parse(BCF47)
 	switch e := err.(type) {
 	case language.ValueError:
-		log.Fatalf("Unknown language: '%s': culprit %q\n", lang, e.Subtag())
+		log.Fatalf("Unknown language: %q: culprit %q", lang, e.Subtag())
 	case nil:
 		// No error.
 	default:
 		// A syntax error.
-		log.Fatalf("Unknown language: '%s': ill-formed\n", lang)
+		log.Fatalf("Unknown language: %q: ill-formed", lang)
 	}
 	base, _ := lang.Base()
 	return base.ISO3()
@@ -45,7 +45,7 @@ func copyFile(src, dst string) (err error) {
 	if !sfi.Mode().IsRegular() {
 		// cannot copy non-regular files (e.g., directories,
 		// symlinks, devices, etc.)
-		return fmt.Errorf("CopyFile: non-regular source file %s (%q)", sfi.Name(), sfi.Mode().String())
+		return fmt.Errorf("CopyFile: non-regular source file %q (%s)", sfi.Name(), sfi.Mode().String())
 	}
 	dfi, err := os.Stat(dst)
 	if err != nil {
@@ -54,7 +54,7 @@ func copyFile(src, dst string) (err error) {
 		}
 	} else {
 		if !(dfi.Mode().IsRegular()) {
-			return fmt.Errorf("CopyFile: non-regular destination file %s (%q)", dfi.Name(), dfi.Mode().String())
+			return fmt.Errorf("CopyFile: non-regular destination file %q (%s)", dfi.Name(), dfi.Mode().String())
 		}
 		if os.SameFile(sfi, dfi) {
 			return
@@ -64,6 +64,17 @@ func copyFile(src, dst string) (err error) {
 	//    return
 	// }
 	err = copyFileContents(src, dst)
+
+	if err != nil {
+		return
+	}
+
+	err = os.Chtimes(dst, sfi.ModTime(), sfi.ModTime())
+	if err != nil {
+		log.Warnf("Cannot set time for %q: %s", dst, err)
+		err = nil
+	}
+
 	return
 }
 
@@ -98,7 +109,7 @@ func findNewestFile(dir string, mask string) (name string, err error) {
 	// inspiration: https://stackoverflow.com/a/45579190
 	files, err := ioutil.ReadDir(dir)
 	if err != nil {
-		log.Fatalf("Cannot read directory %s: %s", dir, err)
+		log.Fatalf("Cannot read directory %q: %s", dir, err)
 	}
 	var modTime time.Time
 	var names []string
@@ -106,7 +117,7 @@ func findNewestFile(dir string, mask string) (name string, err error) {
 		if mask != "" {
 			matched, err := path.Match(mask, fi.Name())
 			if err != nil {
-				log.Printf("Match failed on %s for %s", mask, fi.Name())
+				log.Debugf("Match failed on %q for %q", mask, fi.Name())
 				return "", err
 			}
 			if !matched {

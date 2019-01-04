@@ -49,6 +49,9 @@ base_url:
 # default: email field
 # managingeditor:
 
+# default: ./default/ (the prefix of the name of this file (default))
+# output_dir:
+
 # default: default.xml (the prefix of the name of this file (default) + .xml)
 # output_file:
 

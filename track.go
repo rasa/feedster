@@ -3,12 +3,14 @@ package main
 import (
 	"fmt"
 	"reflect"
+	"regexp"
 	"strings"
 )
 
 const (
 	minMilliseconds = 1
 	minFileSize     = 1024
+	skipRegex       = "(?i)^(avoid|bypass|circumvent|dodge|duck|forget|hide|ignore|neglect|omit|overlook|pass|quit|reject|sidestep|shirk|skirt|skip)$"
 )
 
 // Track contains the MP3 tags to be updated
@@ -28,13 +30,15 @@ type Track struct { // Our example struct, you can use "-" to ignore a field
 	Title            string `csv:"title,omitempty"`    // Item.Title
 	Year             string `csv:"year,omitempty"`
 	OriginalFilename string
-	// duration is determined by running ffprobe on filename
+	// Duration is determined by running ffprobe on filename
 	Duration             string
 	DurationMilliseconds int64
-	// fileSize is determined via os.Stat()
+	// FileSize is the file's size via os.Stat()
 	FileSize         int64
 	OriginalFileSize int64
-	// modTime is determined via os.Stat()
+	// OriginalModTime is the nanoseconds of the last mod time via os.Stat()
+	OriginalModTime int64
+	// ModTime is the nanoseconds of the last mod time (less duration) via os.Stat()
 	ModTime int64
 }
 
@@ -100,27 +104,19 @@ func (f *Track) Set(fieldName string, fieldValue string) bool {
 
 // IsValid returns true if the track should be processed/exported
 func (f *Track) IsValid() bool {
-	if f.Filename == "" {
-		return false
-	}
-	if f.DurationMilliseconds < minMilliseconds {
-		return false
-	}
-	if f.FileSize < minFileSize {
-		return false
-	}
-	if f.ModTime == 0 {
-		return false
-	}
-	return true
+	return f.Error() == nil
 }
 
 func (f *Track) Error() (err error) {
 	if f.Filename == "" {
 		return fmt.Errorf("Filename is empty")
 	}
-	if f.Title == "" {
-		return fmt.Errorf("Title is empty")
+	if f.Title != "" && strings.TrimSpace(f.Title) == "" {
+		return fmt.Errorf("File is marked to be skipped")
+	}
+	matched, err := regexp.MatchString(skipRegex, f.Title)
+	if err == nil && matched {
+		return fmt.Errorf("File is marked to be skipped")
 	}
 	if f.DurationMilliseconds < minMilliseconds {
 		return fmt.Errorf("File is too short in duration")

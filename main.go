@@ -32,6 +32,7 @@ import (
 
 const (
 	copyrightDescription = "Copyright"
+	defaultDuration      = "00:00:00"
 	defaultImageExt      = ".jpg"
 	defaultLogLevel      = log.InfoLevel
 	defaultMimeType      = "image/jpeg"
@@ -39,7 +40,7 @@ const (
 	durationMask         = "%02d:%02d:%02d"
 	localYAML            = "local.yaml"
 
-	outputFileMask  = "%s.xml"
+	outputFileMask  = "%s%s.xml"
 	podcastFileMask = "%s-podcast.yaml"
 	tracksFileMask  = "%s-tracks%s"
 
@@ -66,6 +67,7 @@ type Default struct {
 	Image          string `yaml:"image,omitempty"`
 	Language       string `yaml:"language,omitempty"`
 	ManagingEditor string `yaml:"managingeditor,omitempty"`
+	OutputDir      string `yaml:"output_dir,omitempty"`
 	OutputFile     string `yaml:"output_file,omitempty"`
 	PodcastFile    string `yaml:"podcast_file,omitempty"`
 	RenameMask     string `yaml:"rename_mask,omitempty"`
@@ -83,6 +85,7 @@ var initDefaults = &Default{
 	Complete:      "yes",
 	CopyrightMask: "Copyright (c) & (p) %d, %s", // or: Copyright © & ℗ %d, %s
 	DiscNumber:    "1",
+	EncodedBy:     "Encoded by feedster " + version.VERSION,
 	Explicit:      "no",
 	Ffprobe:       "ffprobe",
 	Language:      "en-us",
@@ -94,10 +97,11 @@ var initDefaults = &Default{
 
 var defaults = initDefaults
 
+// search for files in this order
 var trackFileExtensions = []string{
-	".csv",
 	".xlsx",
 	".xls",
+	".csv",
 }
 
 /*
@@ -143,12 +147,12 @@ func trace() bool {
 }
 
 func dump(s string, x interface{}) {
-	if !debug() {
+	if !trace() {
 		return
 	}
 
 	if s != "" {
-		log.Infoln(s)
+		log.Trace(s)
 	}
 	if x == nil {
 		return
@@ -156,10 +160,10 @@ func dump(s string, x interface{}) {
 
 	b, err := json.MarshalIndent(x, "", "  ")
 	if err != nil {
-		log.Errorln("marshal error: ", err)
+		log.Error("JSON marshaling error: ", err)
 		return
 	}
-	log.Info(string(b))
+	log.Trace(string(b))
 }
 
 func normalizeTrack(track *Track) (err error) {
@@ -169,14 +173,12 @@ func normalizeTrack(track *Track) (err error) {
 }
 
 func setCopyright(track *Track, defaults *Default, year int) {
-	if track.Copyright == "" {
-		if defaults.Copyright != "" {
-			// track.Copyright := html.EscapeString(defaults.Copyright)
-			track.Copyright = defaults.Copyright
-		} else {
-			// track.Copyright = fmt.Sprintf(html.EscapeString(defaults.CopyrightMask), year, track.Artist)
-			track.Copyright = fmt.Sprintf(defaults.CopyrightMask, year, track.Artist)
-		}
+	if defaults.Copyright != "" {
+		// track.Copyright := html.EscapeString(defaults.Copyright)
+		track.Copyright = defaults.Copyright
+	} else {
+		// track.Copyright = fmt.Sprintf(html.EscapeString(defaults.CopyrightMask), year, track.Artist)
+		track.Copyright = fmt.Sprintf(defaults.CopyrightMask, year, track.Artist)
 	}
 }
 
@@ -198,25 +200,6 @@ func setTrackDefaults(track *Track, lastTrack *Track) bool {
 	}
 	if track.AlbumArtist == "" {
 		track.AlbumArtist = track.Artist
-	}
-	if track.Track == "" {
-		i, err := strconv.Atoi(lastTrack.Track)
-		if err == nil {
-			track.Track = strconv.Itoa(i + 1)
-		}
-	}
-	if track.Track == "" {
-		track.Track = defaults.TrackNo
-	}
-	if track.DiscNumber == "" {
-		track.DiscNumber = lastTrack.DiscNumber
-	} else {
-		if track.DiscNumber != lastTrack.DiscNumber {
-			track.Track = "1"
-		}
-	}
-	if track.DiscNumber == "" {
-		track.DiscNumber = defaults.DiscNumber
 	}
 	if track.AlbumTitle == "" {
 		track.AlbumTitle = lastTrack.AlbumTitle
@@ -240,15 +223,16 @@ func setTrackDefaults(track *Track, lastTrack *Track) bool {
 		}
 		setCopyright(track, defaults, year)
 		track.DurationMilliseconds = 0
-		track.Duration = "00:00:00"
+		track.Duration = defaultDuration
 		return false
 	}
 
 	fi, err := os.Stat(track.Filename)
 	if err != nil {
-		log.Fatalf("Cannot open %s: %s", track.Filename, err)
+		log.Fatalf("Cannot open %q: %s", track.Filename, err)
 	}
-	track.ModTime = fi.ModTime().UnixNano()
+	track.OriginalModTime = fi.ModTime().UnixNano()
+	track.ModTime = track.OriginalModTime
 	track.OriginalFileSize = fi.Size()
 	track.FileSize = fi.Size()
 
@@ -262,46 +246,72 @@ func setTrackDefaults(track *Track, lastTrack *Track) bool {
 	cmd := defaults.Ffprobe
 	out, err := exec.Command(cmd, track.Filename).CombinedOutput()
 	if err != nil {
-		log.Fatalf("Command failed: %s: %s", cmd, err)
+		log.Fatalf("Command failed: %q: %s", cmd, err)
 	}
 
 	re := regexp.MustCompile(`Duration:\s*([\d]+):([\d]+):([\d]+)`)
 	b := re.FindSubmatch(out)
 
 	if len(b) <= 3 {
-		log.Warnf("Failed to get duration for %s", track.Filename)
+		log.Warnf("Cannot get duration for %q", track.Filename)
 		track.DurationMilliseconds = 0
 		track.Duration = "00:00:00"
-		return false
+	} else {
+		hours, _ := strconv.Atoi(string(b[1]))
+		minutes, _ := strconv.Atoi(string(b[2]))
+		seconds, _ := strconv.Atoi(string(b[3]))
+		hundredths := int(0)
+
+		re = regexp.MustCompile(`Duration:\s*[\d]+:[\d]+:[\d]+\.([\d]+)`)
+		b = re.FindSubmatch(out)
+
+		if len(b) == 2 {
+			hundredths, _ = strconv.Atoi(string(b[1]))
+		}
+
+		track.DurationMilliseconds = int64(1000*((hours*3600)+(minutes*60)+seconds) + (hundredths * 10))
+
+		if hundredths > 0 {
+			seconds++
+		}
+		if seconds > 59 {
+			minutes++
+			seconds = 0
+		}
+		if minutes > 59 {
+			hours++
+			minutes = 0
+		}
+
+		track.Duration = fmt.Sprintf(durationMask, hours, minutes, seconds)
+
+		if track.DurationMilliseconds > 0 {
+			track.ModTime -= track.DurationMilliseconds * 1000000
+		}
 	}
 
-	hours, _ := strconv.Atoi(string(b[1]))
-	minutes, _ := strconv.Atoi(string(b[2]))
-	seconds, _ := strconv.Atoi(string(b[3]))
-	hundredths := int(0)
-
-	re = regexp.MustCompile(`Duration:\s*[\d]+:[\d]+:[\d]+\.([\d]+)`)
-	b = re.FindSubmatch(out)
-
-	if len(b) == 2 {
-		hundredths, _ = strconv.Atoi(string(b[1]))
+	if track.Track == "" {
+		if lastTrack.Track != "" {
+			track.Track = lastTrack.Track
+			if track.IsValid() {
+				i, _ := strconv.Atoi(track.Track)
+				track.Track = strconv.Itoa(i + 1)
+			}
+		}
 	}
-
-	track.DurationMilliseconds = int64(1000*((hours*3600)+(minutes*60)+seconds) + (hundredths * 10))
-
-	if hundredths > 0 {
-		seconds++
+	if track.Track == "" {
+		track.Track = defaults.TrackNo
 	}
-	if seconds > 59 {
-		minutes++
-		seconds = 0
+	if track.DiscNumber == "" {
+		track.DiscNumber = lastTrack.DiscNumber
+	} else {
+		if track.DiscNumber != lastTrack.DiscNumber {
+			track.Track = "1"
+		}
 	}
-	if minutes > 59 {
-		hours++
-		minutes = 0
+	if track.DiscNumber == "" {
+		track.DiscNumber = defaults.DiscNumber
 	}
-
-	track.Duration = fmt.Sprintf(durationMask, hours, minutes, seconds)
 
 	return true
 }
@@ -349,7 +359,7 @@ func addTextFrame(tag *id3v2.Tag, id string, text string) {
 	}
 	tid := tag.CommonID(id)
 	if id == "" {
-		log.Warnf("Unknown id3v2 ID: '%s'\n", id)
+		log.Warnf("Unknown id3v2 ID %q", id)
 	}
 	tag.AddTextFrame(tid, id3v2.EncodingUTF8, text)
 }
@@ -371,10 +381,10 @@ func setTags(tag *id3v2.Tag, track *Track, defaults *Default, tracks []*Track) {
 		trackNumber = fmt.Sprintf("%s/%d", trackNumber, totalTracks)
 	}
 
-	log.Tracef("totalDiscs=%d\n", totalDiscs)
-	log.Tracef("totalTracks=%d\n", totalTracks)
-	log.Tracef("discNumber=%s\n", discNumber)
-	log.Tracef("trackNumber=%s\n", trackNumber)
+	log.Tracef("totalDiscs:  %d", totalDiscs)
+	log.Tracef("totalTracks: %d", totalTracks)
+	log.Tracef("discNumber:  %d", discNumber)
+	log.Tracef("trackNumber: %d", trackNumber)
 
 	// user defined fields:
 
@@ -432,9 +442,10 @@ func setTags(tag *id3v2.Tag, track *Track, defaults *Default, tracks []*Track) {
 }
 
 func addFrontCover(filename string) (pic *id3v2.PictureFrame, err error) {
+	log.Debugf("Reading %q", filename)
 	_, err = os.Stat(filename)
 	if err != nil {
-		log.Warnf("Cannot read %s: %s", filename, err)
+		log.Warnf("Cannot read %q: %s", filename, err)
 		return nil, nil
 	}
 
@@ -442,14 +453,14 @@ func addFrontCover(filename string) (pic *id3v2.PictureFrame, err error) {
 	mimeType := mime.TypeByExtension(ext)
 
 	if mimeType == "" {
-		log.Warnf("Unknown image format %s: %s", filename, err)
+		log.Warnf("Unknown mime type for image %q: %s", filename, err)
 		mimeType = defaultMimeType
 	}
 
 	// See https://godoc.org/github.com/bogem/id3v2#PictureFrame
 	artwork, err := ioutil.ReadFile(filename)
 	if err != nil {
-		log.Fatalf("Cannot read %s: %s", filename, err)
+		log.Fatalf("Cannot read %q: %s", filename, err)
 	}
 
 	pic = &id3v2.PictureFrame{
@@ -464,23 +475,23 @@ func addFrontCover(filename string) (pic *id3v2.PictureFrame, err error) {
 
 func preProcessTrack(trackIndex int, track *Track, lastTrack *Track, tracks []*Track) {
 	if track.Filename != "" {
-		log.Infof("Preprocessing track %d: %s\n", trackIndex, track.Filename)
+		log.Infof("Preprocessing row %2d: %q", trackIndex, track.Filename)
 		normalizeTrack(track)
 	}
 
 	setTrackDefaults(track, lastTrack)
 
-	if track.Filename == "" {
-		log.Infof("Skipping track %d: %s\n", trackIndex, "Filename is empty")
+	if !track.IsValid() {
+		log.Infof("Skipping row %2d: %q: %s", trackIndex, track.Filename, track.Error())
 	}
 }
 
 func processTrack(trackIndex int, track *Track, lastTrack *Track, tracks []*Track) {
-	log.Infof("Processing track %d: %s\n", trackIndex, track.Filename)
+	log.Infof("Processing track %2d: %q", trackIndex, track.Filename)
 
 	tag, err := id3v2.Open(track.Filename, id3v2.Options{Parse: true})
 	if err != nil {
-		log.Fatalf("Cannot open %s: %s", track.Filename, err)
+		log.Fatalf("Cannot open %q: %s", track.Filename, err)
 	}
 
 	setTags(tag, track, defaults, tracks)
@@ -495,20 +506,20 @@ func processTrack(trackIndex int, track *Track, lastTrack *Track, tracks []*Trac
 	// Write it to file.
 	err = tag.Save()
 	if err != nil {
-		log.Fatalf("Cannot save tags for %s: %s", track.Filename, err)
+		log.Fatalf("Cannot save tags for %q: %s", track.Filename, err)
 	}
 	tag.Close()
-	if track.ModTime != 0 {
-		modTime := time.Unix(0, track.ModTime)
+	if track.OriginalModTime != 0 {
+		modTime := time.Unix(0, track.OriginalModTime)
 		err = os.Chtimes(track.Filename, modTime, modTime)
 		if err != nil {
-			log.Warnf("Cannot set time for %s: %s", track.Filename, err)
+			log.Warnf("Cannot set time for %q: %s", track.Filename, err)
 		}
 	}
 
 	fi, err := os.Stat(track.Filename)
 	if err != nil {
-		log.Fatalf("Cannot open %s: %s", track.Filename, err)
+		log.Fatalf("Cannot open %q: %s", track.Filename, err)
 	}
 	track.FileSize = fi.Size()
 }
@@ -617,16 +628,16 @@ func newName(track *Track, defaults *Default) (newName string, err error) {
 		if name != k {
 			continue
 		}
-		log.Tracef("k=%v\n", k)
-		log.Tracef("v=%v\n", v)
-		log.Tracef("regex=%v\n", regex)
-		log.Tracef("name=%s\n", name)
-		log.Tracef("b=%v\n", b)
+		log.Tracef("k: %v", k)
+		log.Tracef("v: %v", v)
+		log.Tracef("regex: %v", regex)
+		log.Tracef("name: %q", name)
+		log.Tracef("b: %v", b)
 		format := b[2]
 		if format == "" {
 			format = "%s"
 		}
-		log.Tracef("format=%v\n", format)
+		log.Tracef("format: %v", format)
 		underline := strings.Index(format, "_") > -1
 		if underline {
 			format = strings.Replace(format, "_", "", -1)
@@ -641,21 +652,21 @@ func newName(track *Track, defaults *Default) (newName string, err error) {
 		case "t":
 			b, err := strconv.ParseBool(v)
 			if err != nil {
-				log.Warnln(err)
+				log.Warn(err)
 				return "", err
 			}
 			s = fmt.Sprintf(format, b)
 		case "b", "c", "d", "o", "q", "x", "X", "U":
 			i, err := strconv.ParseInt(v, 10, 64)
 			if err != nil {
-				log.Warnln(err)
+				log.Warn(err)
 				return "", err
 			}
 			s = fmt.Sprintf(format, i)
 		case "e", "E", "f", "F", "g", "G":
 			f, err := strconv.ParseFloat(v, 64)
 			if err != nil {
-				log.Warnln(err)
+				log.Warn(err)
 				return "", err
 			}
 			s = fmt.Sprintf(format, f)
@@ -668,7 +679,7 @@ func newName(track *Track, defaults *Default) (newName string, err error) {
 		if dash {
 			s = strings.Replace(s, " ", "-", -1)
 		}
-		log.Tracef("s=%v\n", s)
+		log.Tracef("s: %v", s)
 		newName = strings.Replace(newName, b[0], s, -1)
 	}
 
@@ -676,6 +687,7 @@ func newName(track *Track, defaults *Default) (newName string, err error) {
 }
 
 func addTrack(p *podcast.Podcast, track *Track, defaults *Default) {
+	log.Debugf("Adding track %q", track.Filename)
 	pubDate := time.Unix(0, track.ModTime)
 	item := podcast.Item{
 		Title:       track.Title,
@@ -694,11 +706,20 @@ func addTrack(p *podcast.Podcast, track *Track, defaults *Default) {
 	if err == nil {
 		if newName != "" {
 			if !strings.EqualFold(track.Filename, newName) {
-				log.Infof("Copying %s to %s\n", track.Filename, newName)
-				err = copyFile(track.Filename, newName)
+				newPath := defaults.OutputDir + newName
+				log.Infof("Copying %q to %q", track.Filename, newPath)
+				err = copyFile(track.Filename, newPath)
 				if err != nil {
-					os.Exit(1)
+					log.Fatalf("Cannot copy %q to %q: %s", track.Filename, newPath, err)
+
 				}
+				modTime := time.Unix(0, track.ModTime)
+				log.Debugf("Setting time for %q to %v", newPath, modTime)
+				err = os.Chtimes(newPath, modTime, modTime)
+				if err != nil {
+					log.Warnf("Cannot set time for %q: %s", newPath, err)
+				}
+
 				track.Filename = newName
 			}
 		}
@@ -710,7 +731,7 @@ func addTrack(p *podcast.Podcast, track *Track, defaults *Default) {
 	// add the Item and check for validation errors
 	_, err = p.AddItem(item)
 	if err != nil {
-		log.Fatalf("Cannot add track %s: %s", track.Filename, err)
+		log.Fatalf("Cannot add track %q: %s", track.Filename, err)
 	}
 }
 
@@ -734,16 +755,17 @@ func processImage(fp *fpodcast.Podcast, defaults *Default) (err error) {
 	}
 
 	basename := path.Base(fp.Image.URL)
+	log.Debugf("Processing image %q", basename)
 	reader, err := os.Open(basename)
 	if err != nil {
-		log.Warnf("Cannot open %s: %s", basename, err)
+		log.Warnf("Cannot open %q: %s", basename, err)
 		return err
 	}
 	defer reader.Close()
 
 	im, _, err := image.DecodeConfig(reader)
 	if err != nil {
-		log.Warnf("Cannot read %s: %v\n", basename, err)
+		log.Warnf("Cannot read %q: %s", basename, err)
 		return err
 	}
 
@@ -751,46 +773,56 @@ func processImage(fp *fpodcast.Podcast, defaults *Default) (err error) {
 	fp.Image.Height = im.Height
 
 	if fp.Image.Width < imageWidthMin {
-		err = fmt.Errorf("image %s's width (%d) needs to be %d or greater", basename, fp.Image.Width, imageWidthMin)
-		log.Warnln(err)
+		err = fmt.Errorf("%q: image width (%d) needs to be %d or greater", basename, fp.Image.Width, imageWidthMin)
+		log.Warn(err)
 	}
 	if fp.Image.Width > imageWidthMax {
-		err = fmt.Errorf("image %s's width (%d) needs to be %d or less", basename, fp.Image.Width, imageWidthMax)
-		log.Warnln(err)
+		err = fmt.Errorf("%q: image width (%d) needs to be %d or less", basename, fp.Image.Width, imageWidthMax)
+		log.Warn(err)
 	}
 	if fp.Image.Height < imageHeightMin {
-		err = fmt.Errorf("image %s's height (%d) needs to be %d or greater", basename, fp.Image.Height, imageHeightMin)
-		log.Warnln(err)
+		err = fmt.Errorf("%q: image height (%d) needs to be %d or greater", basename, fp.Image.Height, imageHeightMin)
+		log.Warn(err)
 	}
 	if fp.Image.Height > imageHeightMax {
-		err = fmt.Errorf("image %s's height (%d) needs to be %d or less", basename, fp.Image.Height, imageHeightMax)
-		log.Warnln(err)
+		err = fmt.Errorf("%q: image height (%d) needs to be %d or less", basename, fp.Image.Height, imageHeightMax)
+		log.Warn(err)
 	}
 
 	return err
 }
 
+func copyImage(fp *fpodcast.Podcast, defaults *Default) {
+	basename := path.Base(fp.Image.URL)
+	newPath := defaults.OutputDir + basename
+	log.Infof("Copying %q to %q", basename, newPath)
+	err := copyFile(basename, newPath)
+	if err != nil {
+		log.Fatalf("Cannot copy %q to %q: %s", basename, newPath, err)
+	}
+}
+
 func readCSV(csvFile string) (tracks []*Track) {
-	log.Infof("Reading %s\n", csvFile)
+	log.Infof("Reading %q", csvFile)
 	csvFD, err := os.Open(csvFile)
 	if err != nil {
-		log.Fatalf("Cannot read %s: %s", csvFile, err)
+		log.Fatalf("Cannot read %q: %s", csvFile, err)
 	}
 	defer csvFD.Close()
 
 	err = gocsv.Unmarshal(csvFD, &tracks)
 	if err != nil { // Load track from file
-		log.Fatalf("Cannot process %s: %s", csvFile, err)
+		log.Fatalf("Cannot process %q: %s", csvFile, err)
 	}
 
 	return tracks
 }
 
 func readXLS(xlsFile string) (tracks []*Track) {
-	log.Infof("Reading %s\n", xlsFile)
+	log.Infof("Reading %q", xlsFile)
 	xlsx, err := excelize.OpenFile(xlsFile)
 	if err != nil {
-		log.Fatalf("Cannot read %s: %s", xlsFile, err)
+		log.Fatalf("Cannot read %q: %s", xlsFile, err)
 	}
 
 	var sheetName string
@@ -799,7 +831,7 @@ func readXLS(xlsFile string) (tracks []*Track) {
 		break
 	}
 	if sheetName == "" {
-		log.Fatalf("Cannot find any sheets in %s", xlsFile)
+		log.Fatalf("Cannot find any sheets in %q", xlsFile)
 	}
 
 	nameToColMap := make(map[int]string)
@@ -878,25 +910,46 @@ func validTracks(tracks []*Track) (rv uint) {
 }
 
 func loadDefaults(yamlFile string, genFilenames bool) {
-	log.Infof("Reading %s\n", yamlFile)
+	log.Infof("Reading %q", yamlFile)
 	configData, err := ioutil.ReadFile(yamlFile)
 	if err != nil {
-		log.Fatalf("Cannot read %s: %s", yamlFile, err)
+		log.Fatalf("Cannot read %q: %s", yamlFile, err)
 	}
 
 	err = yaml.Unmarshal(configData, defaults)
 	if err != nil {
-		log.Fatalf("Cannot process %s: %s", yamlFile, err)
+		log.Fatalf("Cannot process %q: %s", yamlFile, err)
 	}
 
 	base := basename(yamlFile)
+
+	if defaults.OutputDir == "" {
+		defaults.OutputDir = base
+	}
+
+	fi, err := os.Stat(defaults.OutputDir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			log.Debugf("Creating directory %q", defaults.OutputDir)
+			err = os.MkdirAll(defaults.OutputDir, os.ModePerm)
+		}
+		if err != nil {
+			log.Fatalf("Cannot create directory %q: %s", defaults.OutputDir, err)
+		}
+	} else {
+		if !fi.Mode().IsDir() {
+			log.Fatalf("Cannot create directory %q: %s", defaults.OutputDir, "A file of the same name already exists")
+		}
+	}
+
+	defaults.OutputDir += "/"
 
 	if defaults.Image == "" {
 		defaults.Image = base + defaultImageExt
 	}
 
 	if genFilenames {
-		defaults.OutputFile = fmt.Sprintf(outputFileMask, base)
+		defaults.OutputFile = fmt.Sprintf(outputFileMask, defaults.OutputDir, base)
 		defaults.PodcastFile = fmt.Sprintf(podcastFileMask, base)
 	}
 
@@ -908,17 +961,17 @@ func loadDefaults(yamlFile string, genFilenames bool) {
 
 	defaults.totalDiscs, err = strconv.ParseBool(defaults.TotalDiscs)
 	if err != nil {
-		log.Fatalf("Parse error parsing total_discs in %s: %s", defaults.PodcastFile, err)
+		log.Fatalf("Cannot parse total_discs in %q: %s", defaults.PodcastFile, err)
 	}
 	defaults.totalTracks, err = strconv.ParseBool(defaults.TotalTracks)
 	if err != nil {
-		log.Fatalf("Parse error parsing total_tracks in %s: %s", defaults.PodcastFile, err)
+		log.Fatalf("Cannot parse total_tracks in %q: %s", defaults.PodcastFile, err)
 	}
 }
 
 func processYAML(yamlFile string) {
 	if yamlFile == "" {
-		log.Fatalln("Input file name is empty")
+		log.Fatal("Input file name is empty")
 	}
 
 	defaults = initDefaults
@@ -935,21 +988,21 @@ func processYAML(yamlFile string) {
 
 	defaults.BaseURL = strings.Trim(defaults.BaseURL, " ")
 	if defaults.BaseURL == "" {
-		log.Fatalf("No base_url defined in %s", yamlFile)
+		log.Fatalf("No base_url defined in %q", yamlFile)
 	}
 
 	if defaults.PodcastFile == "" {
-		log.Fatalf("No podcast_file defined in %s", yamlFile)
+		log.Fatalf("No podcast_file defined in %q", yamlFile)
 	}
 
 	if defaults.OutputFile == "" {
-		log.Fatalf("No output_file defined in %s\n", yamlFile)
+		log.Fatalf("No output_file defined in %q", yamlFile)
 	}
 
-	log.Infof("Reading %s\n", defaults.PodcastFile)
+	log.Infof("Reading %q", defaults.PodcastFile)
 	yamlData, err := ioutil.ReadFile(defaults.PodcastFile)
 	if err != nil {
-		log.Fatalf("Cannot read %s: %s", defaults.PodcastFile, err)
+		log.Fatalf("Cannot read %q: %s", defaults.PodcastFile, err)
 	}
 
 	var fp fpodcast.Podcast
@@ -960,7 +1013,7 @@ func processYAML(yamlFile string) {
 
 	err = yaml.Unmarshal(yamlData, &fp)
 	if err != nil {
-		log.Fatalf("Cannot process %s: %s", defaults.PodcastFile, err)
+		log.Fatalf("Cannot process %q: %s", defaults.PodcastFile, err)
 	}
 	dump("fp@2=", fp)
 
@@ -978,9 +1031,9 @@ func processYAML(yamlFile string) {
 		for _, ext := range trackFileExtensions {
 			tracksFile = fmt.Sprintf(tracksFileMask, base, ext)
 			_, err := os.Stat(tracksFile)
-			log.Debugf("Searching for %s\n", tracksFile)
+			log.Debugf("Searching for %q", tracksFile)
 			if err == nil {
-				log.Debugf("Found %s\n", tracksFile)
+				log.Debugf("Found %q", tracksFile)
 				break
 			}
 			tracksFile = ""
@@ -988,7 +1041,7 @@ func processYAML(yamlFile string) {
 	}
 
 	if tracksFile == "" {
-		log.Fatalf("No tracks_file defined in %s\n!", yamlFile)
+		log.Fatalf("No tracks_file defined in %q", yamlFile)
 	}
 
 	ext := strings.ToLower(filepath.Ext(tracksFile))
@@ -999,7 +1052,7 @@ func processYAML(yamlFile string) {
 	case ".xls", ".xlsx":
 		tracks = readXLS(tracksFile)
 	default:
-		log.Fatalf("Unsupported format for tracks file %s: '%s'\n", tracksFile, ext)
+		log.Fatalf("Unsupported format for tracks file %q: %q", tracksFile, ext)
 	}
 
 	dump("tracks@1=", tracks)
@@ -1010,29 +1063,33 @@ func processYAML(yamlFile string) {
 		preProcessTrack(i+1, track, lastTrack, tracks)
 		lastTrack = track
 	}
+	skipped := len(tracks) - int(validTracks(tracks))
+	log.Infof("Preprocessed %d tracks (%d of %d rows were skipped)", validTracks(tracks), skipped, len(tracks))
 
 	dump("tracks@2=", tracks)
 
 	lastTrack = &Track{}
 
-	for i, track := range tracks {
+	trackIndex := 1
+	for _, track := range tracks {
 		if !track.IsValid() {
-			log.Infof("Skipping track %d: %s: %s", i+1, track.Filename, track.Error())
 			continue
 		}
-
-		processTrack(i+1, track, lastTrack, tracks)
+		processTrack(trackIndex, track, lastTrack, tracks)
 		lastTrack = track
+		trackIndex += 1
 	}
+
+	log.Infof("Processed %d tracks", validTracks(tracks))
 
 	// pubDate     := updatedDate.AddDate(0, 0, 3)
 
 	dump("tracks@3=", tracks)
 
-	log.Infof("Creating %s\n", defaults.OutputFile)
+	log.Infof("Creating %q", defaults.OutputFile)
 	xmlFD, err := os.Create(defaults.OutputFile)
 	if err != nil {
-		log.Fatalf("Cannot create %s: %s", defaults.OutputFile, err)
+		log.Fatalf("Cannot create %q: %s", defaults.OutputFile, err)
 	}
 	defer xmlFD.Close()
 
@@ -1060,12 +1117,14 @@ func processYAML(yamlFile string) {
 		// d := pubDate.AddDate(0, 0, int(i + 1))
 	}
 
+	copyImage(&fp, defaults)
+
 	// Podcast.Encode writes to an io.Writer
 	err = p.Encode(xmlFD)
 	if err != nil {
-		log.Fatalf("Cannot write to %s: %s", xmlFD.Name(), err)
+		log.Fatalf("Cannot write to %q: %s", xmlFD.Name(), err)
 	}
-	log.Infof("Saved %d of %d tracks to %s", validTracks(tracks), len(tracks), defaults.OutputFile)
+	log.Infof("Saved %d tracks to %q", validTracks(tracks), len(tracks), defaults.OutputFile)
 }
 
 func main() {
