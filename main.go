@@ -381,10 +381,10 @@ func setTags(tag *id3v2.Tag, track *Track, defaults *Default, tracks []*Track) {
 		trackNumber = fmt.Sprintf("%s/%d", trackNumber, totalTracks)
 	}
 
-	log.Tracef("totalDiscs:  %d", totalDiscs)
-	log.Tracef("totalTracks: %d", totalTracks)
-	log.Tracef("discNumber:  %d", discNumber)
-	log.Tracef("trackNumber: %d", trackNumber)
+	log.Tracef("totalDiscs:  %v", totalDiscs)
+	log.Tracef("totalTracks: %v", totalTracks)
+	log.Tracef("discNumber:  %v", discNumber)
+	log.Tracef("trackNumber: %v", trackNumber)
 
 	// user defined fields:
 
@@ -1124,7 +1124,7 @@ func processYAML(yamlFile string) {
 	if err != nil {
 		log.Fatalf("Cannot write to %q: %s", xmlFD.Name(), err)
 	}
-	log.Infof("Saved %d tracks to %q", validTracks(tracks), len(tracks), defaults.OutputFile)
+	log.Infof("Saved %d tracks to %q", validTracks(tracks), defaults.OutputFile)
 }
 
 func main() {
