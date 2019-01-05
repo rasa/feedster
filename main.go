@@ -2,6 +2,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -32,12 +33,10 @@ import (
 
 const (
 	copyrightDescription = "Copyright"
-	defaultDuration      = "00:00:00"
 	defaultImageExt      = ".jpg"
 	defaultLogLevel      = log.InfoLevel
 	defaultMimeType      = "image/jpeg"
 	defaultYAML          = "default.yaml"
-	durationMask         = "%02d:%02d:%02d"
 	feedsterURL          = "https://github.com/rasa/feedster"
 	localYAML            = "local.yaml"
 
@@ -62,7 +61,9 @@ type Default struct {
 	DiscNumber     string `yaml:"disc_number,omitempty"`
 	Email          string `yaml:"email,omitempty"`
 	EncodedBy      string `yaml:"encoded_by,omitempty"`
+	Exiftool       string `yaml:"exiftool,omitempty"`
 	Explicit       string `yaml:"explicit,omitempty"`
+	Ffmpeg         string `yaml:"ffmpeg,omitempty"`
 	Ffprobe        string `yaml:"ffprobe,omitempty"`
 	Generator      string `yaml:"generator,omitempty"`
 	Image          string `yaml:"image,omitempty"`
@@ -84,17 +85,21 @@ type Default struct {
 
 var initDefaults = &Default{
 	Complete:      "no",
-	CopyrightMask: "Copyright (c) & (p) %d, %s", // or: Copyright © & ℗ %d, %s
-	DiscNumber:    "1",
-	EncodedBy:     "Encoded by feedster " + version.VERSION,
-	Explicit:      "no",
-	Ffprobe:       "ffprobe",
-	Generator:     "feedster " + version.VERSION + " (" + feedsterURL + ")",
-	Language:      "en-us",
-	TotalDiscs:    "true",
-	TotalTracks:   "true",
-	TrackNo:       "1",
-	TTL:           "1",
+	CopyrightMask: "Copyright (c) & (p) %d, %s",
+	// This works, but some players do not display the (p) symbol (like VLC):
+	// CopyrightMask: "Copyright \u00a9 & \u2117 %d, %s",
+	DiscNumber:  "1",
+	EncodedBy:   "feedster " + version.VERSION + " (" + feedsterURL + ")",
+	Exiftool:    "exiftool",
+	Explicit:    "no",
+	Ffmpeg:      "ffmpeg",
+	Ffprobe:     "ffprobe",
+	Generator:   "feedster " + version.VERSION + " (" + feedsterURL + ")",
+	Language:    "en-us",
+	TotalDiscs:  "true",
+	TotalTracks: "true",
+	TrackNo:     "1",
+	TTL:         "1",
 }
 
 var defaults = initDefaults
@@ -184,7 +189,166 @@ func setCopyright(track *Track, defaults *Default, year int) {
 	}
 }
 
+func getDurationViaExiftool(track *Track, defaults *Default) (durationMilliseconds int64, err error) {
+	if defaults.Exiftool == "" {
+		return 0, fmt.Errorf("exiftool is not set")
+	}
+
+	args := []string{
+		defaults.Exiftool,
+		"-s",
+		"-s",
+		"-s",
+		"-Duration",
+		track.Filename,
+	}
+
+	cmd := exec.Command(args[0], args[1], args[2], args[3], args[4], args[5])
+	cmdline := fmt.Sprintf("%q %s %s %s %s %q", args[0], args[1], args[2], args[3], args[4], args[5])
+	log.Debugf("Executing: %s", cmdline)
+	var bout bytes.Buffer
+	var berr bytes.Buffer
+	cmd.Stdout = &bout
+	cmd.Stderr = &berr
+	err = cmd.Run()
+	sout := strings.TrimSpace(bout.String())
+	serr := strings.TrimSpace(berr.String())
+	if sout != "" {
+		log.Debugf("stdout=%v", sout)
+	}
+	if serr != "" {
+		log.Debugf("stderr=%v", serr)
+	}
+	if err != nil {
+		return 0, fmt.Errorf("Command failed: %s: %s: %s", cmdline, err, serr)
+	}
+
+	re := regexp.MustCompile(`([\d]+):([\d]+):([\d]+)`)
+	b := re.FindStringSubmatch(sout)
+
+	if len(b) <= 3 {
+		return 0, fmt.Errorf("Command failed: %s: %s: %s", cmdline, "dd:dd:dd not found", sout)
+	}
+	hours, _ := strconv.Atoi(string(b[1]))
+	minutes, _ := strconv.Atoi(string(b[2]))
+	seconds, _ := strconv.Atoi(string(b[3]))
+
+	return int64(1000 * ((hours * 3600) + (minutes * 60) + seconds)), nil
+}
+
+// see https://superuser.com/questions/650291/how-to-get-video-duration-in-seconds
+func getDurationViaFfmpeg(track *Track, defaults *Default) (durationMilliseconds int64, err error) {
+	if defaults.Ffmpeg == "" {
+		return 0, fmt.Errorf("ffmpeg is not set")
+	}
+
+	args := []string{
+		defaults.Ffmpeg,
+		"-i",
+		track.Filename,
+		"-f",
+		"null",
+		"-",
+		"-y",
+	}
+
+	cmd := exec.Command(args[0], args[1], args[2], args[3], args[4], args[5], args[6])
+	cmdline := fmt.Sprintf("%q %s %q %s %s %s %s", args[0], args[1], args[2], args[3], args[4], args[5], args[6])
+	log.Debugf("Executing: %s", cmdline)
+	var bout bytes.Buffer
+	var berr bytes.Buffer
+	cmd.Stdout = &bout
+	cmd.Stderr = &berr
+	err = cmd.Run()
+	sout := strings.TrimSpace(bout.String())
+	serr := strings.TrimSpace(berr.String())
+	if sout != "" {
+		log.Debugf("stdout=%v", sout)
+	}
+	if serr != "" {
+		log.Debugf("stderr=%v", serr)
+	}
+	if err != nil {
+		return 0, fmt.Errorf("Command failed: %s: %s: %s", cmdline, err, serr)
+	}
+
+	// ffmpeg outputs on stderr
+	sout = serr
+	re := regexp.MustCompile(` time=([\d]+):([\d]+):([\d]+)`)
+	b := re.FindStringSubmatch(sout)
+
+	if len(b) <= 3 {
+		return 0, fmt.Errorf("Command failed: %s: %s: %s", cmdline, "time= not found", sout)
+	}
+	hours, _ := strconv.Atoi(string(b[1]))
+	minutes, _ := strconv.Atoi(string(b[2]))
+	seconds, _ := strconv.Atoi(string(b[3]))
+	hundredths := int(0)
+
+	re = regexp.MustCompile(` time=[\d]+:[\d]+:[\d]+\.([\d]+)`)
+	b = re.FindStringSubmatch(sout)
+
+	if len(b) == 2 {
+		hundredths, _ = strconv.Atoi(string(b[1]))
+	}
+
+	return int64(1000*((hours*3600)+(minutes*60)+seconds) + (hundredths * 10)), nil
+}
+
+func getDurationViaFfprobe(track *Track, defaults *Default) (durationMilliseconds int64, err error) {
+	if defaults.Ffprobe == "" {
+		return 0, fmt.Errorf("ffprobe is not set")
+	}
+
+	args := []string{
+		defaults.Ffprobe,
+		"-v",
+		"error",
+		"-show_entries",
+		"format=duration",
+		"-of",
+		"default=noprint_wrappers=1:nokey=1",
+		track.Filename,
+	}
+
+	cmd := exec.Command(args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7])
+	cmdline := fmt.Sprintf("%q %s %s %s %s %s %s %q", args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7])
+	log.Debugf("Executing: %s", cmdline)
+	var bout bytes.Buffer
+	var berr bytes.Buffer
+	cmd.Stdout = &bout
+	cmd.Stderr = &berr
+	err = cmd.Run()
+	sout := strings.TrimSpace(bout.String())
+	serr := strings.TrimSpace(berr.String())
+	if sout != "" {
+		log.Debugf("stdout=%v", sout)
+	}
+	if serr != "" {
+		log.Debugf("stderr=%v", serr)
+	}
+	if err != nil {
+		return 0, fmt.Errorf("Command failed: %s: %s: %s", cmdline, err, serr)
+	}
+
+	re := regexp.MustCompile("[^0-9:.]+")
+
+	seconds, err := strconv.ParseFloat(re.ReplaceAllString(sout, ""), 64)
+	if err != nil {
+		return 0, fmt.Errorf("Command failed: %s: %s: %s", cmdline, "duration not found", sout)
+	}
+	// round up to the next millsecond
+	seconds += 0.000999
+
+	return int64(seconds * 1000), nil
+}
+
 func setTrackDefaults(track *Track, lastTrack *Track) bool {
+	if track.Filename == "" {
+		track.Processed = true
+		return false
+	}
+
 	if track.Title == "" {
 		if track.Filename != "" {
 			track.Title = basename(path.Base(track.Filename))
@@ -194,39 +358,14 @@ func setTrackDefaults(track *Track, lastTrack *Track) bool {
 		// per https://github.com/eduncan911/podcast/blob/master/podcast.go#L270
 		track.Description = track.Title
 	}
-	if track.Artist == "" {
+
+	if lastTrack != nil {
 		track.Artist = lastTrack.Artist
-	}
-	if track.AlbumArtist == "" {
 		track.AlbumArtist = lastTrack.AlbumArtist
-	}
-	if track.AlbumArtist == "" {
 		track.AlbumArtist = track.Artist
-	}
-	if track.AlbumTitle == "" {
 		track.AlbumTitle = lastTrack.AlbumTitle
-	}
-	if track.Copyright == "" {
 		track.Copyright = lastTrack.Copyright
-	}
-
-	if track.Genre == "" {
 		track.Genre = lastTrack.Genre
-	}
-
-	var year int
-
-	if track.Filename == "" {
-		if track.Year != "" {
-			year, _ = strconv.Atoi(track.Year)
-		} else {
-			year := time.Now().Year()
-			track.Year = strconv.Itoa(year)
-		}
-		setCopyright(track, defaults, year)
-		track.DurationMilliseconds = 0
-		track.Duration = defaultDuration
-		return false
 	}
 
 	fi, err := os.Stat(track.Filename)
@@ -238,83 +377,64 @@ func setTrackDefaults(track *Track, lastTrack *Track) bool {
 	track.OriginalFileSize = fi.Size()
 	track.FileSize = fi.Size()
 
-	if track.Year == "" {
-		year = fi.ModTime().Year()
+	year := fi.ModTime().Year()
+	if track.Year != "" {
+		y, err := strconv.Atoi(track.Year)
+		if err == nil {
+			year = y
+		}
+	} else {
 		track.Year = strconv.Itoa(year)
 	}
 
 	setCopyright(track, defaults, year)
 
-	cmd := defaults.Ffprobe
-	out, err := exec.Command(cmd, track.Filename).CombinedOutput()
+	track.DurationMilliseconds, err = getDurationViaExiftool(track, defaults)
+	var err2 error
 	if err != nil {
-		log.Fatalf("Command failed: %q: %s", cmd, err)
+		track.DurationMilliseconds, err2 = getDurationViaFfprobe(track, defaults)
+	}
+	var err3 error
+	if err2 != nil {
+		track.DurationMilliseconds, err3 = getDurationViaFfmpeg(track, defaults)
+	}
+	if err3 != nil {
+		log.Warnf(err.Error())
+		log.Warnf(err2.Error())
+		log.Warnf(err3.Error())
 	}
 
-	re := regexp.MustCompile(`Duration:\s*([\d]+):([\d]+):([\d]+)`)
-	b := re.FindSubmatch(out)
-
-	if len(b) <= 3 {
-		log.Warnf("Cannot get duration for %q", track.Filename)
-		track.DurationMilliseconds = 0
-		track.Duration = "00:00:00"
-	} else {
-		hours, _ := strconv.Atoi(string(b[1]))
-		minutes, _ := strconv.Atoi(string(b[2]))
-		seconds, _ := strconv.Atoi(string(b[3]))
-		hundredths := int(0)
-
-		re = regexp.MustCompile(`Duration:\s*[\d]+:[\d]+:[\d]+\.([\d]+)`)
-		b = re.FindSubmatch(out)
-
-		if len(b) == 2 {
-			hundredths, _ = strconv.Atoi(string(b[1]))
-		}
-
-		track.DurationMilliseconds = int64(1000*((hours*3600)+(minutes*60)+seconds) + (hundredths * 10))
-
-		if hundredths > 0 {
-			seconds++
-		}
-		if seconds > 59 {
-			minutes++
-			seconds = 0
-		}
-		if minutes > 59 {
-			hours++
-			minutes = 0
-		}
-
-		track.Duration = fmt.Sprintf(durationMask, hours, minutes, seconds)
-
-		if track.DurationMilliseconds > 0 {
-			track.ModTime -= track.DurationMilliseconds * 1000000
-		}
-	}
+	// track.Duration = getDuration(track.DurationMilliseconds)
 
 	if track.Track == "" {
-		if lastTrack.Track != "" {
-			track.Track = lastTrack.Track
-			if track.IsValid() {
-				i, _ := strconv.Atoi(track.Track)
-				track.Track = strconv.Itoa(i + 1)
+		if lastTrack != nil {
+			if lastTrack.Track != "" {
+				track.Track = lastTrack.Track
+				if track.IsValid() {
+					i, _ := strconv.Atoi(track.Track)
+					track.Track = strconv.Itoa(i + 1)
+				}
 			}
 		}
 	}
 	if track.Track == "" {
 		track.Track = defaults.TrackNo
 	}
-	if track.DiscNumber == "" {
-		track.DiscNumber = lastTrack.DiscNumber
-	} else {
-		if track.DiscNumber != lastTrack.DiscNumber {
-			track.Track = "1"
+	if lastTrack != nil {
+		if track.DiscNumber == "" {
+			track.DiscNumber = lastTrack.DiscNumber
+		} else {
+			if track.DiscNumber != lastTrack.DiscNumber {
+				track.Track = "1"
+			}
 		}
 	}
+
 	if track.DiscNumber == "" {
 		track.DiscNumber = defaults.DiscNumber
 	}
 
+	track.Processed = true
 	return true
 }
 
@@ -406,32 +526,34 @@ func setTags(tag *id3v2.Tag, track *Track, defaults *Default, tracks []*Track) {
 	addTextFrame(tag, "Encoded by", defaults.EncodedBy)
 	addTextFrame(tag, "Language", defaults.Language)
 
-	subtitle := ""
-	if track.Subtitle != "" {
-		subtitle = track.Subtitle
-	}
+	description := ""
 	if track.Description != "" {
-		if subtitle != "" {
-			subtitle += " / "
-		}
-		subtitle += track.Description
+		description = track.Description
 	}
-	addTextFrame(tag, "Subtitle/Description refinement", subtitle)
+	if track.Subtitle != "" {
+		if description != "" {
+			description += " / "
+		}
+		description += track.Subtitle
+	}
+	addTextFrame(tag, "Subtitle/Description refinement", description)
 
 	addTextFrame(tag, "Track number/Position in set", trackNumber)
 
 	// system defined fields:
 
-	t := time.Unix(0, track.ModTime)
-	MMDD := fmt.Sprintf("%02d%02d", t.Month(), t.Day())
-	HHMM := fmt.Sprintf("%02d%02d", t.Hour(), t.Minute())
+	modTime := time.Unix(0, track.ModTime)
+	mmdd := fmt.Sprintf("%02d%02d", modTime.Month(), modTime.Day())
+	hhmm := fmt.Sprintf("%02d%02d", modTime.Hour(), modTime.Minute())
 
-	addTextFrame(tag, "Date", MMDD)
-	addTextFrame(tag, "Time", HHMM)
+	addTextFrame(tag, "Date", mmdd)
+	addTextFrame(tag, "Time", hhmm)
 
 	addTextFrame(tag, "Original filename", track.OriginalFilename)
 	addTextFrame(tag, "Size", strconv.FormatInt(track.OriginalFileSize, 10))
-	addTextFrame(tag, "Length", strconv.FormatInt(track.DurationMilliseconds, 10))
+	if track.DurationMilliseconds > 0 {
+		addTextFrame(tag, "Length", strconv.FormatInt(track.DurationMilliseconds, 10))
+	}
 
 	// Set comment frame.
 	comment := id3v2.CommentFrame{
@@ -475,17 +597,25 @@ func addFrontCover(filename string) (pic *id3v2.PictureFrame, err error) {
 	return pic, nil
 }
 
-func preProcessTrack(trackIndex int, track *Track, lastTrack *Track, tracks []*Track) {
+func preProcessTrack(trackIndex int, track *Track, lastTrack *Track, tracks []*Track) bool {
 	if track.Filename != "" {
 		log.Infof("Preprocessing row %2d: %q", trackIndex, track.Filename)
 		normalizeTrack(track)
+	}
+
+	if !track.IsValid() {
+		log.Infof("Skipping row %2d: %q: %s", trackIndex, track.Filename, track.Error())
+		return false
 	}
 
 	setTrackDefaults(track, lastTrack)
 
 	if !track.IsValid() {
 		log.Infof("Skipping row %2d: %q: %s", trackIndex, track.Filename, track.Error())
+		return false
 	}
+
+	return true
 }
 
 func processTrack(trackIndex int, track *Track, lastTrack *Track, tracks []*Track) {
@@ -699,10 +829,12 @@ func addTrack(p *podcast.Podcast, track *Track, defaults *Default) {
 	}
 	// @TODO(rasa) change to p.Image.URL
 	item.AddImage(defaults.BaseURL + defaults.Image)
-	if track.Duration != "" {
-		item.IDuration = track.Duration
+	if track.DurationMilliseconds > 0 {
+		item.IDuration = track.Duration()
 	}
-	item.AddSummary(track.Summary)
+	if track.Summary != "" {
+		item.AddSummary(track.Summary)
+	}
 
 	newName, err := newName(track, defaults)
 	if err == nil {
@@ -969,6 +1101,15 @@ func loadDefaults(yamlFile string, genFilenames bool) {
 	if err != nil {
 		log.Fatalf("Cannot parse total_tracks in %q: %s", defaults.PodcastFile, err)
 	}
+
+	defaults.Exiftool = normalizeDirectory(defaults.Exiftool)
+	defaults.Ffmpeg = normalizeDirectory(defaults.Ffmpeg)
+	defaults.Ffprobe = normalizeDirectory(defaults.Ffprobe)
+	defaults.Image = normalizeDirectory(defaults.Image)
+	defaults.OutputDir = normalizeDirectory(defaults.OutputDir)
+	defaults.OutputFile = normalizeDirectory(defaults.OutputFile)
+	defaults.PodcastFile = normalizeDirectory(defaults.PodcastFile)
+	defaults.TracksFile = normalizeDirectory(defaults.TracksFile)
 }
 
 func processYAML(yamlFile string) {
@@ -977,6 +1118,8 @@ func processYAML(yamlFile string) {
 	}
 
 	defaults = initDefaults
+
+	yamlFile = normalizeDirectory(yamlFile)
 
 	loadDefaults(yamlFile, true)
 
@@ -1059,18 +1202,19 @@ func processYAML(yamlFile string) {
 
 	dump("tracks@1=", tracks)
 
-	lastTrack := &Track{}
+	var lastTrack *Track
 
 	for i, track := range tracks {
-		preProcessTrack(i+1, track, lastTrack, tracks)
-		lastTrack = track
+		if preProcessTrack(i+1, track, lastTrack, tracks) {
+			lastTrack = track
+		}
 	}
 	skipped := len(tracks) - int(validTracks(tracks))
 	log.Infof("Preprocessed %d tracks (%d of %d rows were skipped)", validTracks(tracks), skipped, len(tracks))
 
 	dump("tracks@2=", tracks)
 
-	lastTrack = &Track{}
+	lastTrack = nil
 
 	trackIndex := 1
 	for _, track := range tracks {
@@ -1079,7 +1223,7 @@ func processYAML(yamlFile string) {
 		}
 		processTrack(trackIndex, track, lastTrack, tracks)
 		lastTrack = track
-		trackIndex += 1
+		trackIndex++
 	}
 
 	log.Infof("Processed %d tracks", validTracks(tracks))

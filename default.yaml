@@ -31,8 +31,14 @@ base_url:
 # default: none
 # encoded_by:
 
+# default: exiftool
+# exiftool:
+
 # default: no
 # explicit:
+
+# default: ffmpeg
+# ffmpeg:
 
 # default: ffprobe
 # ffprobe:

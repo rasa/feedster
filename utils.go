@@ -6,6 +6,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path"
+	"regexp"
 	"runtime"
 	"strings"
 	"time"
@@ -157,9 +158,15 @@ func hhmmssToUint64(hhmmss string) (seconds int64) {
 }
 */
 
-func normalizeFilename(filename string) string {
-	if runtime.GOOS == "windows" {
-		return strings.Replace(filename, `\`, "/", -1)
+func normalizeDirectory(dir string) string {
+	if runtime.GOOS != "windows" {
+		return dir
 	}
-	return filename
+	return strings.Replace(dir, `\`, "/", -1)
+}
+
+func normalizeFilename(filename string) string {
+	// invalid characters in a filename (Windows, etc)
+	re := regexp.MustCompile(`[<>"|?*/\\:%]+`)
+	return re.ReplaceAllString(filename, "_")
 }

@@ -8,9 +8,11 @@ import (
 )
 
 const (
-	minMilliseconds = 1
+	durationMask = "%02d:%02d:%02d"
+	// mininum duration in order to be considered valid
+	minMilliseconds = 1000
 	minFileSize     = 1024
-	skipRegex       = "(?i)^(avoid|bypass|circumvent|dodge|duck|forget|hide|ignore|neglect|omit|overlook|pass|quit|reject|sidestep|shirk|skirt|skip)$"
+	skipRegex       = "^(avoid|bypass|circumvent|dodge|duck|forget|hide|ignore|neglect|no|omit|overlook|pass|quit|reject|sidestep|shirk|skirt|skip|x)$"
 )
 
 // Track contains the MP3 tags to be updated
@@ -30,8 +32,7 @@ type Track struct { // Our example struct, you can use "-" to ignore a field
 	Title            string `csv:"title,omitempty"`    // Item.Title
 	Year             string `csv:"year,omitempty"`
 	OriginalFilename string
-	// Duration is determined by running ffprobe on filename
-	Duration             string
+	// DurationMilliseconds is determined by running exiftool or ffprobe on filename
 	DurationMilliseconds int64
 	// FileSize is the file's size via os.Stat()
 	FileSize         int64
@@ -39,7 +40,8 @@ type Track struct { // Our example struct, you can use "-" to ignore a field
 	// OriginalModTime is the nanoseconds of the last mod time via os.Stat()
 	OriginalModTime int64
 	// ModTime is the nanoseconds of the last mod time (less duration) via os.Stat()
-	ModTime int64
+	ModTime   int64
+	Processed bool
 }
 
 // Fields returns a map of csv field names to field values
@@ -96,6 +98,7 @@ func (f *Track) Set(fieldName string, fieldValue string) bool {
 		if !strings.EqualFold(s[0], fieldName) {
 			continue
 		}
+		fieldValue = strings.TrimSpace(fieldValue)
 		val.Field(i).SetString(fieldValue)
 		return true
 	}
@@ -107,25 +110,56 @@ func (f *Track) IsValid() bool {
 	return f.Error() == nil
 }
 
+// Error returns the error description, if the track is not valid
 func (f *Track) Error() (err error) {
 	if f.Filename == "" {
 		return fmt.Errorf("Filename is empty")
 	}
-	if f.Title != "" && strings.TrimSpace(f.Title) == "" {
-		return fmt.Errorf("File is marked to be skipped")
+	if f.Title != "" {
+		matched, err := regexp.MatchString(skipRegex, f.Title)
+		if err == nil && matched {
+			if f.Artist == "" && f.Description == "" && f.Track == "" && f.DiscNumber == "" &&
+				f.AlbumTitle == "" && f.Genre == "" && f.AlbumArtist == "" && f.Summary == "" &&
+				f.Copyright == "" && f.Composer == "" && f.Year == "" {
+				return fmt.Errorf("File is marked to be skipped")
+			}
+		}
 	}
-	matched, err := regexp.MatchString(skipRegex, f.Title)
-	if err == nil && matched {
-		return fmt.Errorf("File is marked to be skipped")
-	}
-	if f.DurationMilliseconds < minMilliseconds {
-		return fmt.Errorf("File is too short in duration")
-	}
-	if f.FileSize < minFileSize {
-		return fmt.Errorf("File is too small in size")
+	if !f.Processed {
+		return nil
 	}
 	if f.ModTime == 0 {
 		return fmt.Errorf("File does not exist, or is unreadable")
 	}
+	if f.DurationMilliseconds > 0 && f.DurationMilliseconds < minMilliseconds {
+		return fmt.Errorf("File is only %d milliseconds in duration, >=%d required", f.DurationMilliseconds, minMilliseconds)
+	}
+	if f.FileSize < minFileSize {
+		return fmt.Errorf("File is only %d bytes, >=%d is required", f.FileSize, minFileSize)
+	}
 	return nil
+}
+
+// Duration returns the duration in hh:mm:ss format
+func (f *Track) Duration() string {
+	milliseconds := f.DurationMilliseconds
+	millis := milliseconds % 1000
+	milliseconds /= 1000
+	seconds := milliseconds % 60
+	milliseconds /= 60
+	minutes := milliseconds % 60
+	milliseconds /= 60
+	hours := milliseconds
+	if millis > 0 {
+		seconds++
+	}
+	if seconds > 59 {
+		minutes++
+		seconds = 0
+	}
+	if minutes > 59 {
+		hours++
+		minutes = 0
+	}
+	return fmt.Sprintf(durationMask, hours, minutes, seconds)
 }
