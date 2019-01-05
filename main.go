@@ -38,6 +38,7 @@ const (
 	defaultMimeType      = "image/jpeg"
 	defaultYAML          = "default.yaml"
 	durationMask         = "%02d:%02d:%02d"
+	feedsterURL          = "https://github.com/rasa/feedster"
 	localYAML            = "local.yaml"
 
 	outputFileMask  = "%s%s.xml"
@@ -82,12 +83,13 @@ type Default struct {
 }
 
 var initDefaults = &Default{
-	Complete:      "yes",
+	Complete:      "no",
 	CopyrightMask: "Copyright (c) & (p) %d, %s", // or: Copyright © & ℗ %d, %s
 	DiscNumber:    "1",
 	EncodedBy:     "Encoded by feedster " + version.VERSION,
 	Explicit:      "no",
 	Ffprobe:       "ffprobe",
+	Generator:     "feedster " + version.VERSION + " (" + feedsterURL + ")",
 	Language:      "en-us",
 	TotalDiscs:    "true",
 	TotalTracks:   "true",
@@ -582,7 +584,7 @@ func setPodcast(p *podcast.Podcast, fp *fpodcast.Podcast) {
 	p.TTL = fp.TTL
 	p.WebMaster = fp.WebMaster
 
-	p.IAuthor = fp.IAuthor
+	p.AddAuthor(fp.IOwner.Name, fp.IOwner.Email)
 	p.AddSubTitle(fp.ISubtitle)
 	p.IBlock = fp.IBlock
 	p.IDuration = fp.IDuration
@@ -607,7 +609,7 @@ func setPodcast(p *podcast.Podcast, fp *fpodcast.Podcast) {
 	}
 
 	if fp.IOwner != nil {
-		p.AddAuthor(fp.IOwner.Name, fp.IOwner.Email)
+		p.IOwner = &podcast.Author{Name: fp.IOwner.Name, Email: fp.IOwner.Email}
 	}
 }
 
