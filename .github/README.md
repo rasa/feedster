@@ -12,6 +12,7 @@ Easily tag MP3 files and generate iTunes podcast feed
 6. Upload `default.xml` and .mp3s to what you set `base_url` to in [default.yaml](../default.yaml#L6)
 7. Test feed via http://podba.se/validate/
 8. Submit feed via https://podcastsconnect.apple.com/
+9. To refresh a feed, visit https://podcastsconnect.apple.com/my-podcasts , select the podcast you want to refresh, and select the `Refresh Feed` link.
 
 ### Installing
 
