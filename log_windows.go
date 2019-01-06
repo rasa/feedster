@@ -8,7 +8,7 @@ import (
 	"runtime"
 )
 
-func logInit() {
+func init() {
 	if runtime.GOOS == "windows" {
 		logrus.SetFormatter(&logrus.TextFormatter{ForceColors: true})
 		logrus.SetOutput(colorable.NewColorableStdout())

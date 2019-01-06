@@ -714,7 +714,9 @@ func setPodcast(p *podcast.Podcast, fp *fpodcast.Podcast) {
 	p.TTL = fp.TTL
 	p.WebMaster = fp.WebMaster
 
-	p.AddAuthor(fp.IOwner.Name, fp.IOwner.Email)
+	// This formats the author as: ex@example.com (Author Name)
+	// p.AddAuthor(fp.IOwner.Name, fp.IOwner.Email)
+	p.IAuthor = fp.IAuthor
 	p.AddSubTitle(fp.ISubtitle)
 	p.IBlock = fp.IBlock
 	p.IDuration = fp.IDuration
@@ -1297,7 +1299,6 @@ func main() {
 	if *logCaller {
 		log.SetReportCaller(true)
 	}
-	logInit()
 
 	if flag.NArg() == 0 {
 		processYAML(defaultYAML)
