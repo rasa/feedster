@@ -189,6 +189,22 @@ func setCopyright(track *Track, defaults *Default, year int) {
 	}
 }
 
+// see https://golang.org/src/os/exec/exec.go#L142
+func getCmd(args []string) (cmd *exec.Cmd, err error) {
+	err = nil
+	name := args[0]
+	cmd = &exec.Cmd{
+		Path: name,
+		Args: args,
+	}
+	if filepath.Base(name) == name {
+		if lp, err := exec.LookPath(name); err == nil {
+			cmd.Path = lp
+		}
+	}
+	return cmd, err
+}
+
 func getDurationViaExiftool(track *Track, defaults *Default) (durationMilliseconds int64, err error) {
 	if defaults.Exiftool == "" {
 		return 0, fmt.Errorf("exiftool is not set")
@@ -203,8 +219,11 @@ func getDurationViaExiftool(track *Track, defaults *Default) (durationMillisecon
 		track.Filename,
 	}
 
-	cmd := exec.Command(args[0], args[1], args[2], args[3], args[4], args[5])
-	cmdline := fmt.Sprintf("%q %s %s %s %s %q", args[0], args[1], args[2], args[3], args[4], args[5])
+	cmd, err := getCmd(args)
+	if err != nil {
+		return 0, fmt.Errorf("Command not found: %q: %s", args[0], err)
+	}
+	cmdline := strings.Join(args, " ")
 	log.Debugf("Executing: %s", cmdline)
 	var bout bytes.Buffer
 	var berr bytes.Buffer
@@ -252,8 +271,11 @@ func getDurationViaFfmpeg(track *Track, defaults *Default) (durationMilliseconds
 		"-y",
 	}
 
-	cmd := exec.Command(args[0], args[1], args[2], args[3], args[4], args[5], args[6])
-	cmdline := fmt.Sprintf("%q %s %q %s %s %s %s", args[0], args[1], args[2], args[3], args[4], args[5], args[6])
+	cmd, err := getCmd(args)
+	if err != nil {
+		return 0, fmt.Errorf("Command not found: %q: %s", args[0], err)
+	}
+	cmdline := strings.Join(args, " ")
 	log.Debugf("Executing: %s", cmdline)
 	var bout bytes.Buffer
 	var berr bytes.Buffer
@@ -311,8 +333,11 @@ func getDurationViaFfprobe(track *Track, defaults *Default) (durationMillisecond
 		track.Filename,
 	}
 
-	cmd := exec.Command(args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7])
-	cmdline := fmt.Sprintf("%q %s %s %s %s %s %s %q", args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7])
+	cmd, err := getCmd(args)
+	if err != nil {
+		return 0, fmt.Errorf("Command not found: %q: %s", args[0], err)
+	}
+	cmdline := strings.Join(args, " ")
 	log.Debugf("Executing: %s", cmdline)
 	var bout bytes.Buffer
 	var berr bytes.Buffer
