@@ -2,6 +2,8 @@
 
 Easily tag MP3 files and generate iTunes podcast feed
 
+<!-- toc -->
+
 ## Getting Started
 
 1. Download feedster from releases page (or install via scoop)
