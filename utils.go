@@ -106,6 +106,7 @@ func copyFileContents(src, dst string) (err error) {
 	return
 }
 
+/*
 func findNewestFile(dir string, mask string) (name string, err error) {
 	// inspiration: https://stackoverflow.com/a/45579190
 	files, err := ioutil.ReadDir(dir)
@@ -143,7 +144,7 @@ func findNewestFile(dir string, mask string) (name string, err error) {
 	}
 	return "", fmt.Errorf("No files found matching %s", mask)
 }
-
+*/
 /*
 func hhmmssToUint64(hhmmss string) (seconds int64) {
 	// there's surely an easier way than this, right?
