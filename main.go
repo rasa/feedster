@@ -140,7 +140,7 @@ main
 			copyFile
 		validTracks
 */
-
+/*
 func l(level log.Level) bool {
 	return log.IsLevelEnabled(level)
 }
@@ -148,7 +148,7 @@ func l(level log.Level) bool {
 func debug() bool {
 	return log.IsLevelEnabled(log.DebugLevel)
 }
-
+*/
 func trace() bool {
 	return log.IsLevelEnabled(log.TraceLevel)
 }
@@ -173,12 +173,13 @@ func dump(s string, x interface{}) {
 	log.Trace(string(b))
 }
 
-func normalizeTrack(track *Track) (err error) {
+// @TODO move to track.go
+func normalizeTrack(track *Track) {
 	track.OriginalFilename = track.Filename
 	track.Filename = normalizeFilename(track.Filename)
-	return nil
 }
 
+// @TODO move to track.go
 func setCopyright(track *Track, defaults *Default, year int) {
 	if defaults.Copyright != "" {
 		// track.Copyright := html.EscapeString(defaults.Copyright)
@@ -189,6 +190,7 @@ func setCopyright(track *Track, defaults *Default, year int) {
 	}
 }
 
+// @TODO move to utils.go
 // see https://golang.org/src/os/exec/exec.go#L142
 func getCmd(args []string) (cmd *exec.Cmd, err error) {
 	err = nil
@@ -205,6 +207,7 @@ func getCmd(args []string) (cmd *exec.Cmd, err error) {
 	return cmd, err
 }
 
+// @TODO move to track.go
 func getDurationViaExiftool(track *Track, defaults *Default) (durationMilliseconds int64, err error) {
 	if defaults.Exiftool == "" {
 		return 0, fmt.Errorf("exiftool is not set")
@@ -255,6 +258,7 @@ func getDurationViaExiftool(track *Track, defaults *Default) (durationMillisecon
 	return int64(1000 * ((hours * 3600) + (minutes * 60) + seconds)), nil
 }
 
+// @TODO move to track.go
 // see https://superuser.com/questions/650291/how-to-get-video-duration-in-seconds
 func getDurationViaFfmpeg(track *Track, defaults *Default) (durationMilliseconds int64, err error) {
 	if defaults.Ffmpeg == "" {
@@ -302,9 +306,9 @@ func getDurationViaFfmpeg(track *Track, defaults *Default) (durationMilliseconds
 	if len(b) <= 3 {
 		return 0, fmt.Errorf("Command failed: %s: %s: %s", cmdline, "time= not found", sout)
 	}
-	hours, _ := strconv.Atoi(string(b[1]))
-	minutes, _ := strconv.Atoi(string(b[2]))
-	seconds, _ := strconv.Atoi(string(b[3]))
+	hours, _ := strconv.Atoi(b[1])
+	minutes, _ := strconv.Atoi(b[2])
+	seconds, _ := strconv.Atoi(b[3])
 	hundredths := int(0)
 
 	re = regexp.MustCompile(` time=[\d]+:[\d]+:[\d]+\.([\d]+)`)
@@ -317,6 +321,7 @@ func getDurationViaFfmpeg(track *Track, defaults *Default) (durationMilliseconds
 	return int64(1000*((hours*3600)+(minutes*60)+seconds) + (hundredths * 10)), nil
 }
 
+// @TODO move to track.go
 func getDurationViaFfprobe(track *Track, defaults *Default) (durationMilliseconds int64, err error) {
 	if defaults.Ffprobe == "" {
 		return 0, fmt.Errorf("ffprobe is not set")
@@ -368,6 +373,7 @@ func getDurationViaFfprobe(track *Track, defaults *Default) (durationMillisecond
 	return int64(seconds * 1000), nil
 }
 
+// @TODO move to track.go
 func setTrackDefaults(track *Track, lastTrack *Track) bool {
 	if track.Filename == "" {
 		track.Processed = true
@@ -428,8 +434,6 @@ func setTrackDefaults(track *Track, lastTrack *Track) bool {
 		log.Warnf(err2.Error())
 		log.Warnf(err3.Error())
 	}
-
-	// track.Duration = getDuration(track.DurationMilliseconds)
 
 	if track.Track == "" {
 		if lastTrack != nil {
@@ -622,7 +626,7 @@ func addFrontCover(filename string) (pic *id3v2.PictureFrame, err error) {
 	return pic, nil
 }
 
-func preProcessTrack(trackIndex int, track *Track, lastTrack *Track, tracks []*Track) bool {
+func preProcessTrack(trackIndex int, track *Track, lastTrack *Track) bool {
 	if track.Filename != "" {
 		log.Infof("Preprocessing row %2d: %q", trackIndex, track.Filename)
 		normalizeTrack(track)
@@ -770,6 +774,7 @@ func setPodcast(p *podcast.Podcast, fp *fpodcast.Podcast) {
 	}
 }
 
+// @TODO move to track.go
 func newName(track *Track, defaults *Default) (newName string, err error) {
 	if defaults.RenameMask == "" {
 		return track.Filename, nil
@@ -797,11 +802,11 @@ func newName(track *Track, defaults *Default) (newName string, err error) {
 			format = "%s"
 		}
 		log.Tracef("format: %v", format)
-		underline := strings.Index(format, "_") > -1
+		underline := strings.Contains(format, "_")
 		if underline {
 			format = strings.Replace(format, "_", "", -1)
 		}
-		dash := strings.Index(format, "-") > -1
+		dash := strings.Contains(format, "-")
 		if dash {
 			format = strings.Replace(format, "-", "", -1)
 		}
@@ -1232,7 +1237,7 @@ func processYAML(yamlFile string) {
 	var lastTrack *Track
 
 	for i, track := range tracks {
-		if preProcessTrack(i+1, track, lastTrack, tracks) {
+		if preProcessTrack(i+1, track, lastTrack) {
 			lastTrack = track
 		}
 	}
