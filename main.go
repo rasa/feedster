@@ -251,9 +251,9 @@ func getDurationViaExiftool(track *Track, defaults *Default) (durationMillisecon
 	if len(b) <= 3 {
 		return 0, fmt.Errorf("Command failed: %s: %s: %s", cmdline, "dd:dd:dd not found", sout)
 	}
-	hours, _ := strconv.Atoi(string(b[1]))
-	minutes, _ := strconv.Atoi(string(b[2]))
-	seconds, _ := strconv.Atoi(string(b[3]))
+	hours, _ := strconv.Atoi(b[1])
+	minutes, _ := strconv.Atoi(b[2])
+	seconds, _ := strconv.Atoi(b[3])
 
 	return int64(1000 * ((hours * 3600) + (minutes * 60) + seconds)), nil
 }
@@ -367,7 +367,7 @@ func getDurationViaFfprobe(track *Track, defaults *Default) (durationMillisecond
 	if err != nil {
 		return 0, fmt.Errorf("Command failed: %s: %s: %s", cmdline, "duration not found", sout)
 	}
-	// round up to the next millsecond
+	// round up to the next millisecond
 	seconds += 0.000999
 
 	return int64(seconds * 1000), nil
