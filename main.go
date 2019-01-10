@@ -315,7 +315,7 @@ func getDurationViaFfmpeg(track *Track, defaults *Default) (durationMilliseconds
 	b = re.FindStringSubmatch(sout)
 
 	if len(b) == 2 {
-		hundredths, _ = strconv.Atoi(string(b[1]))
+		hundredths, _ = strconv.Atoi(b[1])
 	}
 
 	return int64(1000*((hours*3600)+(minutes*60)+seconds) + (hundredths * 10)), nil
