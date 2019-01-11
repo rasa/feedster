@@ -25,11 +25,14 @@ linters-settings:
     list-type: whitelist
     packages:
       -	github.com/360EntSecGroup-Skylar/excelize
-	    - github.com/bogem/id3v2
-	    - github.com/eduncan911/podcast
+      - github.com/bogem/id3v2
+      - github.com/eduncan911/podcast
       - github.com/gocarina/gocsv
-	    - github.com/sirupsen/logrus
-	    - gopkg.in/yaml.v2
+      - github.com/sirupsen/logrus
+      - gopkg.in/yaml.v2
+      - github.com/pkg/errors
+      - github.com/rasa/feedster/podcast
+      - github.com/rasa/feedster/version   
 
 issues:
   exclude-use-default: false
