@@ -1,6 +1,9 @@
 // Program feedster tags mp3s from csv/xls file and gens podcast xml
 package main
 
+// see https://github.com/simplepie/simplepie-ng/wiki/Spec:-iTunes-Podcast-RSS
+// http://id3.org/d3v2.3.0
+
 import (
 	"bytes"
 	"encoding/json"

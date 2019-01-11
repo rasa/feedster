@@ -2,8 +2,12 @@
 
 # Required fields:
 
+# Podcast title:
 title:
+# URL cooresponding to the directory on your web host where the podcast files will be hosted:
+# example: https://example.com/my-new-podcast/
 link:
+# Podcast description:
 description:
 
 # Optional fields:

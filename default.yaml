@@ -2,6 +2,7 @@
 
 # required fields:
 
+# base_url: The web site location where you will host the files for this podcast
 # default: none
 base_url:
 
