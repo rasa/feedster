@@ -2,22 +2,25 @@ linters:
   enable-all: true
   enable:
       - deadcode
-      - depguard
+       - depguard
       - errcheck
+      - gas
       - goconst
-      - gocritic
-      - gocyclo
+       - gocritic
+       - gocyclo
       - gofmt
       - goimports
       - golint
       - gosimple
       - govet
       - ineffassign
-      - megacheck
-      - misspell
+      - interfacer
+       - megacheck
+       - misspell
       - structcheck
-      - typecheck
+       - typecheck
       - unconvert
+      - unused
       - varcheck
 
 linters-settings:
