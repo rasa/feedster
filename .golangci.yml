@@ -1,45 +1,46 @@
+linters-settings:
+  govet:
+    check-shadowing: true
+  golint:
+    min-confidence: 0
+  gocyclo:
+    min-complexity: 10
+  maligned:
+    suggest-new: true
+  dupl:
+    threshold: 100
+  goconst:
+    min-len: 2
+    min-occurrences: 2
+  depguard:
+    list-type: blacklist
+    packages:
+      # logging is allowed only by logutils.Log, logrus
+      # is allowed to use only in logutils package
+      # - github.com/sirupsen/logrus
+  misspell:
+    locale: US
+  lll:
+    line-length: 140
+  goimports:
+    local-prefixes: github.com/rasa/feedster
+  gocritic:
+    enabled-tags:
+      - performance
+      - style
+      - experimental
+    disabled-checks:
+      - wrapperFunc
+      - commentFormatting # https://github.com/go-critic/go-critic/issues/755
+
 linters:
   enable-all: true
-  enable:
-      - deadcode
-       - depguard
-      - errcheck
-      - gas
-      - goconst
-       - gocritic
-       - gocyclo
-      - gofmt
-      - goimports
-      - golint
-      - gosimple
-      - govet
-      - ineffassign
-      - interfacer
-       - megacheck
-       - misspell
-      - structcheck
-       - typecheck
-      - unconvert
-      - unused
-      - varcheck
+  disable:
+    # - maligned
+    # - prealloc
+    # - gosec
+    # - gochecknoglobals
 
-linters-settings:
-  depguard:
-    list-type: whitelist
-    packages:
-      -	github.com/360EntSecGroup-Skylar/excelize
-      - github.com/bogem/id3v2
-      - github.com/eduncan911/podcast
-      - github.com/gocarina/gocsv
-      - github.com/sirupsen/logrus
-      - gopkg.in/yaml.v2
-      - github.com/pkg/errors
-      - github.com/rasa/feedster/podcast
-      - github.com/rasa/feedster/version   
-
-issues:
-  exclude-use-default: false
-  exclude:
-    # errcheck: Almost all programs ignore errors on these functions and in most cases it's ok
-    - Error return value of .((os\.)?std(out|err)\..*|.*Close|.*Flush|os\.Remove(All)?|.*printf?|os\.(Un)?Setenv). is not checked
-    
+# run:
+#  skip-dirs:
+#    - 
