@@ -1,24 +1,24 @@
 linters:
-  enable-all: false
+  enable-all: true
   enable:
-    - golint
-    - gosimple
-    - misspell
-    - gocyclo
-    - gofmt
-    - structcheck
-    - varcheck
-    - ineffassign
-    - typecheck
-    - megacheck
-    - deadcode
-    - govet
-    - errcheck
-    - goimports
-    - depguard
-    - goconst
-    - unconvert
-    - gocritic
+      - deadcode
+      - depguard
+      - errcheck
+      - goconst
+      - gocritic
+      - gocyclo
+      - gofmt
+      - goimports
+      - golint
+      - gosimple
+      - govet
+      - ineffassign
+      - megacheck
+      - misspell
+      - structcheck
+      - typecheck
+      - unconvert
+      - varcheck
 
 linters-settings:
   depguard:
