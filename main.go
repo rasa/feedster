@@ -21,12 +21,13 @@ import (
 	"strings"
 	"time"
 
+	fpodcast "github.com/rasa/feedster/podcast"
+	"github.com/rasa/feedster/version"
+	
 	"github.com/360EntSecGroup-Skylar/excelize"
 	"github.com/bogem/id3v2"
 	"github.com/eduncan911/podcast"
 	"github.com/gocarina/gocsv"
-	fpodcast "github.com/rasa/feedster/podcast"
-	"github.com/rasa/feedster/version"
 	log "github.com/sirupsen/logrus"
 	"gopkg.in/yaml.v2"
 )
