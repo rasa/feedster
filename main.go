@@ -125,7 +125,7 @@ main()
 	processYAML(yamlFile string)
 		readYAML(yamlFile string) (fp fpodcast.Podcast)
 			loadDefaults(yamlFile string, genFilenames bool)
-			setDefaults(fp *fpodcast.Podcast, defaults *Default)
+			setDefaults(fp *fpodcast.Podcast)
 			processImage(fp *fpodcast.Podcast, imageName string, baseURL string) (err error)
 		getTracksFilename(yamlFile string) (tracksFile string)
 		processTracks(fp fpodcast.Podcast, tracksFile string) (tracks []*Track)
@@ -139,18 +139,18 @@ main()
 					getDurationViaFfmpeg(track *Track, ffmpeg string) (durationMilliseconds int64, err error)
 					getDurationViaFfprobe(track *Track, ffprobe string) (durationMilliseconds int64, err error)
 			processTrack(trackIndex int, track *Track, lastTrack *Track, tracks []*Track)
-				setTags(tag *id3v2.Tag, track *Track, defaults *Default, tracks []*Track)
+				setTags(tag *id3v2.Tag, track *Track, tracks []*Track)
 					totalDiscs(tracks []*Track) (totalDiscs int)
 					totalTracks(tracks []*Track, discNumber string) (totalTracks int)
 					addTextFrame(tag *id3v2.Tag, id string, text string)
-				addFrontCover(filename string) (pic *id3v2.PictureFrame, err error)
+					addFrontCover(filename string) (pic *id3v2.PictureFrame, err error)
 		savePodcast(fp fpodcast.Podcast, tracks []*Track)
 			createdDate(tracks []*Track) (createdDate time.Time)
 			updatedDate(tracks []*Track) (updatedDate time.Time)
 			setPodcast(p *podcast.Podcast, fp *fpodcast.Podcast)
-			addTrack(p *podcast.Podcast, track *Track, defaults *Default)
-				newName(track *Track, defaults *Default) (newName string, err error)
-				copyImage(fp *fpodcast.Podcast, defaults *Default)
+			addTrack(p *podcast.Podcast, track *Track)
+				newName(track *Track, renameMask string) (newName string, err error)
+				copyImage(fp *fpodcast.Podcast, outputDir string)
 			validTracks(tracks []*Track) (rv uint)
 */
 
@@ -494,7 +494,7 @@ func addTextFrame(tag *id3v2.Tag, id string, text string) {
 	tag.AddTextFrame(tid, id3v2.EncodingUTF8, text)
 }
 
-func setTags(tag *id3v2.Tag, track *Track, defaults *Default, tracks []*Track) {
+func setTags(tag *id3v2.Tag, track *Track, tracks []*Track) {
 	//tag.SetDefaultEncoding(id3v2.EncodingUTF8)
 	//tag.SetVersion(4)
 
@@ -571,6 +571,15 @@ func setTags(tag *id3v2.Tag, track *Track, defaults *Default, tracks []*Track) {
 		Text:        track.Copyright,
 	}
 	tag.AddCommentFrame(comment)
+	
+	if defaults.Image == "" {
+		return
+	}
+	
+	pic, err := addFrontCover(defaults.Image)
+	if err == nil && pic != nil {
+		tag.AddAttachedPicture(*pic)
+	}
 }
 
 func addFrontCover(filename string) (pic *id3v2.PictureFrame, err error) {
@@ -634,14 +643,7 @@ func processTrack(trackIndex int, track *Track, lastTrack *Track, tracks []*Trac
 		log.Fatalf("Cannot open %q: %s", track.Filename, err)
 	}
 
-	setTags(tag, track, defaults, tracks)
-
-	if defaults.Image != "" {
-		pic, err := addFrontCover(defaults.Image)
-		if err == nil && pic != nil {
-			tag.AddAttachedPicture(*pic)
-		}
-	}
+	setTags(tag, track, tracks)
 
 	// Write it to file.
 	err = tag.Save()
@@ -664,7 +666,7 @@ func processTrack(trackIndex int, track *Track, lastTrack *Track, tracks []*Trac
 	track.FileSize = fi.Size()
 }
 
-func setDefaults(fp *fpodcast.Podcast, defaults *Default) {
+func setDefaults(fp *fpodcast.Podcast) {
 	fp.IAuthor = defaults.Author
 	fp.Category = defaults.Category
 	fp.IComplete = defaults.Complete
@@ -754,12 +756,12 @@ func setPodcast(p *podcast.Podcast, fp *fpodcast.Podcast) {
 }
 
 // @TODO move to track.go
-func newName(track *Track, defaults *Default) (newName string, err error) {
-	if defaults.RenameMask == "" {
+func newName(track *Track, renameMask string) (newName string, err error) {
+	if renameMask == "" {
 		return track.Filename, nil
 	}
 
-	newName = defaults.RenameMask
+	newName = renameMask
 	for k, v := range track.Fields() {
 		regex := fmt.Sprintf(`{(%s)([^}]*)}`, k)
 		re := regexp.MustCompile(regex)
@@ -829,7 +831,7 @@ func newName(track *Track, defaults *Default) (newName string, err error) {
 	return newName, nil
 }
 
-func addTrack(p *podcast.Podcast, track *Track, defaults *Default) {
+func addTrack(p *podcast.Podcast, track *Track) {
 	log.Debugf("Adding track %q", track.Filename)
 	pubDate := time.Unix(0, track.ModTime)
 	item := podcast.Item{
@@ -847,7 +849,7 @@ func addTrack(p *podcast.Podcast, track *Track, defaults *Default) {
 		item.AddSummary(track.Summary)
 	}
 
-	newName, err := newName(track, defaults)
+	newName, err := newName(track, defaults.RenameMask)
 	if err == nil {
 		if newName != "" {
 			if !strings.EqualFold(track.Filename, newName) {
@@ -937,9 +939,9 @@ func processImage(fp *fpodcast.Podcast, imageName string, baseURL string) (err e
 	return err
 }
 
-func copyImage(fp *fpodcast.Podcast, defaults *Default) {
+func copyImage(fp *fpodcast.Podcast, outputDir string) {
 	basename := path.Base(fp.Image.URL)
-	newPath := defaults.OutputDir + basename
+	newPath := outputDir + basename
 	log.Infof("Copying %q to %q", basename, newPath)
 	err := copyFile(basename, newPath)
 	if err != nil {
@@ -1205,7 +1207,7 @@ func readYAML(yamlFile string) (fp fpodcast.Podcast) {
 		log.Fatalf("Cannot read %q: %s", defaults.PodcastFile, err)
 	}
 
-	setDefaults(&fp, defaults)
+	setDefaults(&fp)
 
 	dump("fp@1=", fp)
 
@@ -1321,11 +1323,11 @@ func savePodcast(fp fpodcast.Podcast, tracks []*Track) {
 		if !track.IsValid() {
 			continue
 		}
-		addTrack(&p, track, defaults)
+		addTrack(&p, track)
 		// d := pubDate.AddDate(0, 0, int(i + 1))
 	}
 
-	copyImage(&fp, defaults)
+	copyImage(&fp, defaults.OutputDir)
 
 	// Podcast.Encode writes to an io.Writer
 	err = p.Encode(xmlFD)
