@@ -147,7 +147,7 @@ main()
 			updatedDate(tracks []*Track) (updatedDate time.Time)
 			setPodcast(p *podcast.Podcast, fp *fpodcast.Podcast)
 			addTrack(p *podcast.Podcast, track *Track)
-				newName(track *Track, renameMask string) (newName string, err error)
+				track.NewName(renameMask string) (newTrackName string, err error)
 				copyImage(fp *fpodcast.Podcast, outputDir string)
 			validTracks(tracks []*Track) (rv uint)
 */
@@ -185,7 +185,6 @@ func dump(s string, x interface{}) {
 	log.Trace(string(b))
 }
 
-// @TODO move to track.go
 func setTrackDefaults(track *Track, lastTrack *Track) bool {
 	if track.Filename == "" {
 		track.Processed = true
@@ -588,82 +587,6 @@ func setPodcast(p *podcast.Podcast, fp *fpodcast.Podcast) {
 	}
 }
 
-// @TODO move to track.go
-func newName(track *Track, renameMask string) (newName string, err error) {
-	if renameMask == "" {
-		return track.Filename, nil
-	}
-
-	newName = renameMask
-	for k, v := range track.Fields() {
-		regex := fmt.Sprintf(`{(%s)([^}]*)}`, k)
-		re := regexp.MustCompile(regex)
-		b := re.FindStringSubmatch(newName)
-		if len(b) < 3 {
-			continue
-		}
-		name := b[1]
-		if name != k {
-			continue
-		}
-		log.Tracef("k: %v", k)
-		log.Tracef("v: %v", v)
-		log.Tracef("regex: %v", regex)
-		log.Tracef("name: %q", name)
-		log.Tracef("b: %v", b)
-		format := b[2]
-		if format == "" {
-			format = "%s"
-		}
-		log.Tracef("format: %v", format)
-		underline := strings.Contains(format, "_")
-		if underline {
-			format = strings.Replace(format, "_", "", -1)
-		}
-		dash := strings.Contains(format, "-")
-		if dash {
-			format = strings.Replace(format, "-", "", -1)
-		}
-		lastChar := format[len(format)-1:]
-		var s string
-		switch lastChar {
-		case "t":
-			b, err := strconv.ParseBool(v)
-			if err != nil {
-				log.Fatalf("Error parsing rename_mask %v: field: %v: value: %v: %v", defaults.RenameMask, k, v, err)
-				return "", err
-			}
-			s = fmt.Sprintf(format, b)
-		case "b", "c", "d", "o", "q", "x", "X", "U":
-			i, err := strconv.ParseInt(v, 10, 64)
-			if err != nil {
-				log.Fatalf("Error parsing rename_mask %v: field: %v: value: %v: %v", defaults.RenameMask, k, v, err)
-				return "", err
-			}
-			s = fmt.Sprintf(format, i)
-		case "e", "E", "f", "F", "g", "G":
-			f, err := strconv.ParseFloat(v, 64)
-			if err != nil {
-				log.Fatalf("Error parsing rename_mask %v: field: %v: value: %v: %v", defaults.RenameMask, k, v, err)
-				return "", err
-			}
-			s = fmt.Sprintf(format, f)
-		default:
-			s = fmt.Sprintf(format, v)
-		}
-		if underline {
-			s = strings.Replace(s, " ", "_", -1)
-		}
-		if dash {
-			s = strings.Replace(s, " ", "-", -1)
-		}
-		log.Tracef("s: %v", s)
-		newName = strings.Replace(newName, b[0], s, -1)
-	}
-
-	return newName, nil
-}
-
 func addTrack(p *podcast.Podcast, track *Track) {
 	log.Debugf("Adding track %q", track.Filename)
 	pubDate := time.Unix(0, track.ModTime)
@@ -682,26 +605,27 @@ func addTrack(p *podcast.Podcast, track *Track) {
 		item.AddSummary(track.Summary)
 	}
 
-	newName, err := newName(track, defaults.RenameMask)
-	if err == nil {
-		if newName != "" {
-			if !strings.EqualFold(track.Filename, newName) {
-				newPath := defaults.OutputDir + newName
-				log.Infof("Copying %q to %q", track.Filename, newPath)
-				err = copyFile(track.Filename, newPath)
-				if err != nil {
-					log.Fatalf("Cannot copy %q to %q: %s", track.Filename, newPath, err)
+	newTrackName, err := track.NewName(defaults.RenameMask)
+	if err != nil {
+		log.Fatal(err)
+	}
+	if newTrackName != "" {
+		if !strings.EqualFold(track.Filename, newTrackName) {
+			newPath := defaults.OutputDir + newTrackName
+			log.Infof("Copying %q to %q", track.Filename, newPath)
+			err = copyFile(track.Filename, newPath)
+			if err != nil {
+				log.Fatalf("Cannot copy %q to %q: %s", track.Filename, newPath, err)
 
-				}
-				modTime := time.Unix(0, track.ModTime)
-				log.Debugf("Setting time for %q to %v", newPath, modTime)
-				err = os.Chtimes(newPath, modTime, modTime)
-				if err != nil {
-					log.Warnf("Cannot set time for %q: %s", newPath, err)
-				}
-
-				track.Filename = newName
 			}
+			modTime := time.Unix(0, track.ModTime)
+			log.Debugf("Setting time for %q to %v", newPath, modTime)
+			err = os.Chtimes(newPath, modTime, modTime)
+			if err != nil {
+				log.Warnf("Cannot set time for %q: %s", newPath, err)
+			}
+
+			track.Filename = newTrackName
 		}
 	}
 

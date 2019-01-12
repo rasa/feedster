@@ -4,7 +4,10 @@ import (
 	"fmt"
 	"reflect"
 	"regexp"
+	"strconv"
 	"strings"
+
+	log "github.com/sirupsen/logrus"
 )
 
 const (
@@ -182,4 +185,77 @@ func (f *Track) SetCopyright(copyright string, copyrightMask string, year int) {
 		// f.Copyright = fmt.Sprintf(html.EscapeString(copyrightMask), year, f.Artist)
 		f.Copyright = fmt.Sprintf(copyrightMask, year, f.Artist)
 	}
+}
+
+// NewName provides a new filename for the track based on the renameMask
+func (f *Track) NewName(renameMask string) (newTrackName string, err error) {
+	if renameMask == "" {
+		return f.Filename, nil
+	}
+
+	newTrackName = renameMask
+	for k, v := range f.Fields() {
+		regex := fmt.Sprintf(`{(%s)([^}]*)}`, k)
+		re := regexp.MustCompile(regex)
+		b := re.FindStringSubmatch(newTrackName)
+		if len(b) < 3 {
+			continue
+		}
+		name := b[1]
+		if name != k {
+			continue
+		}
+		log.Tracef("k: %v", k)
+		log.Tracef("v: %v", v)
+		log.Tracef("regex: %v", regex)
+		log.Tracef("name: %q", name)
+		log.Tracef("b: %v", b)
+		format := b[2]
+		if format == "" {
+			format = "%s"
+		}
+		log.Tracef("format: %v", format)
+		underline := strings.Contains(format, "_")
+		if underline {
+			format = strings.Replace(format, "_", "", -1)
+		}
+		dash := strings.Contains(format, "-")
+		if dash {
+			format = strings.Replace(format, "-", "", -1)
+		}
+		lastChar := format[len(format)-1:]
+		var s string
+		switch lastChar {
+		case "t":
+			b, err := strconv.ParseBool(v)
+			if err != nil {
+				return "", fmt.Errorf("Error parsing rename_mask %v: field: %v: value: %v: %v", defaults.RenameMask, k, v, err)
+			}
+			s = fmt.Sprintf(format, b)
+		case "b", "c", "d", "o", "q", "x", "X", "U":
+			i, err := strconv.ParseInt(v, 10, 64)
+			if err != nil {
+				return "", fmt.Errorf("Error parsing rename_mask %v: field: %v: value: %v: %v", defaults.RenameMask, k, v, err)
+			}
+			s = fmt.Sprintf(format, i)
+		case "e", "E", "f", "F", "g", "G":
+			f, err := strconv.ParseFloat(v, 64)
+			if err != nil {
+				return "", fmt.Errorf("Error parsing rename_mask %v: field: %v: value: %v: %v", defaults.RenameMask, k, v, err)
+			}
+			s = fmt.Sprintf(format, f)
+		default:
+			s = fmt.Sprintf(format, v)
+		}
+		if underline {
+			s = strings.Replace(s, " ", "_", -1)
+		}
+		if dash {
+			s = strings.Replace(s, " ", "-", -1)
+		}
+		log.Tracef("s: %v", s)
+		newTrackName = strings.Replace(newTrackName, b[0], s, -1)
+	}
+
+	return newTrackName, nil
 }
