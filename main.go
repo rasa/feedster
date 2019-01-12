@@ -133,7 +133,6 @@ main()
 			readTXT(txtFile string) (tracks []*Track)
 			readXLS(xlsFile string) (tracks []*Track)
 			preProcessTrack(trackIndex int, track *Track, lastTrack *Track) bool
-				normalizeTrack(track *Track)
 				setTrackDefaults(track *Track, lastTrack *Track) bool
 					setCopyright(track *Track, defaults *Default, year int)
 					getDurationViaExiftool(track *Track, defaults *Default) (durationMilliseconds int64, err error)
@@ -186,12 +185,6 @@ func dump(s string, x interface{}) {
 		return
 	}
 	log.Trace(string(b))
-}
-
-// @TODO move to track.go
-func normalizeTrack(track *Track) {
-	track.OriginalFilename = track.Filename
-	track.Filename = normalizeFilename(track.Filename)
 }
 
 // @TODO move to track.go
@@ -615,7 +608,7 @@ func addFrontCover(filename string) (pic *id3v2.PictureFrame, err error) {
 func preProcessTrack(trackIndex int, track *Track, lastTrack *Track) bool {
 	if track.Filename != "" {
 		log.Infof("Preprocessing row %2d: %q", trackIndex, track.Filename)
-		normalizeTrack(track)
+		track.NormalizeFilename()
 	}
 
 	if !track.IsValid() {

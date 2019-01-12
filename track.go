@@ -163,3 +163,12 @@ func (f *Track) Duration() string {
 	}
 	return fmt.Sprintf(durationMask, hours, minutes, seconds)
 }
+
+// NormalizeFilename normalizes the filename
+func (f *Track) NormalizeFilename() {
+	if f.OriginalFilename > "" {
+		return
+	}
+	f.OriginalFilename = f.Filename
+	f.Filename = normalizeFilename(f.Filename)
+}
