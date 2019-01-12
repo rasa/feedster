@@ -119,34 +119,43 @@ var trackFileExtensions = []string{
 }
 
 /*
-
 call tree:
 
-main
-	logInit
-	processYAML
-		loadDefaults
-		setDefaults
-		processImage
-		readCSV or readXLS
-		preProcessTrack
-			normalizeTrack
-			setTrackDefaults
-		processTrack
-			normalizeTrack
-			setTags
-				totalDiscs
-				totalTracks
-				addTextFrame
-			addFrontCover
-		createdDate
-		updatedDate
-		setPodcast
-		addTrack
-			newName
-			copyFile
-		validTracks
+main()
+	processYAML(yamlFile string)
+		readYAML(yamlFile string) (fp fpodcast.Podcast)
+			loadDefaults(yamlFile string, genFilenames bool)
+			setDefaults(fp *fpodcast.Podcast, defaults *Default)
+			processImage(fp *fpodcast.Podcast, defaults *Default) (err error)
+		getTracksFilename(yamlFile string) (tracksFile string)
+		processTracks(fp fpodcast.Podcast, tracksFile string) (tracks []*Track)
+			readCSV(csvFile string) (tracks []*Track)
+			readTXT(txtFile string) (tracks []*Track)
+			readXLS(xlsFile string) (tracks []*Track)
+			preProcessTrack(trackIndex int, track *Track, lastTrack *Track) bool
+				normalizeTrack(track *Track)
+				setTrackDefaults(track *Track, lastTrack *Track) bool
+					setCopyright(track *Track, defaults *Default, year int)
+					getCmd(args []string) (cmd *exec.Cmd, err error)
+					getDurationViaExiftool(track *Track, defaults *Default) (durationMilliseconds int64, err error)
+					getDurationViaFfmpeg(track *Track, defaults *Default) (durationMilliseconds int64, err error)
+					getDurationViaFfprobe(track *Track, defaults *Default) (durationMilliseconds int64, err error)
+			processTrack(trackIndex int, track *Track, lastTrack *Track, tracks []*Track)
+				setTags(tag *id3v2.Tag, track *Track, defaults *Default, tracks []*Track)
+					totalDiscs(tracks []*Track) (totalDiscs int)
+					totalTracks(tracks []*Track, discNumber string) (totalTracks int)
+					addTextFrame(tag *id3v2.Tag, id string, text string)
+				addFrontCover(filename string) (pic *id3v2.PictureFrame, err error)
+		savePodcast(fp fpodcast.Podcast, tracks []*Track)
+			createdDate(tracks []*Track) (createdDate time.Time)
+			updatedDate(tracks []*Track) (updatedDate time.Time)
+			setPodcast(p *podcast.Podcast, fp *fpodcast.Podcast)
+			addTrack(p *podcast.Podcast, track *Track, defaults *Default)
+				newName(track *Track, defaults *Default) (newName string, err error)
+				copyImage(fp *fpodcast.Podcast, defaults *Default)
+			validTracks(tracks []*Track) (rv uint)
 */
+
 /*
 func l(level log.Level) bool {
 	return log.IsLevelEnabled(level)
@@ -1189,6 +1198,13 @@ func loadDefaults(yamlFile string, genFilenames bool) {
 }
 
 func processYAML(yamlFile string) {
+	fp := readYAML(yamlFile)
+	tracksFile := getTracksFilename(yamlFile)
+	tracks := processTracks(fp, tracksFile)
+	savePodcast(fp, tracks)
+}
+
+func readYAML(yamlFile string) (fp fpodcast.Podcast) {
 	if yamlFile == "" {
 		log.Fatal("Input file name is empty")
 	}
@@ -1226,8 +1242,6 @@ func processYAML(yamlFile string) {
 		log.Fatalf("Cannot read %q: %s", defaults.PodcastFile, err)
 	}
 
-	var fp fpodcast.Podcast
-
 	setDefaults(&fp, defaults)
 
 	dump("fp@1=", fp)
@@ -1242,10 +1256,11 @@ func processYAML(yamlFile string) {
 	_ = processImage(&fp, defaults)
 
 	dump("fp@3=", fp)
+	return fp
+}
 
-	var tracks []*Track
-
-	tracksFile := defaults.TracksFile
+func getTracksFilename(yamlFile string) (tracksFile string) {
+	tracksFile = defaults.TracksFile
 	if tracksFile == "" {
 		base := basename(yamlFile)
 
@@ -1264,7 +1279,10 @@ func processYAML(yamlFile string) {
 	if tracksFile == "" {
 		log.Fatalf("No tracks_file defined in %q", yamlFile)
 	}
+	return
+}
 
+func processTracks(fp fpodcast.Podcast, tracksFile string) (tracks []*Track) {
 	ext := strings.ToLower(filepath.Ext(tracksFile))
 
 	switch ext {
@@ -1306,16 +1324,19 @@ func processYAML(yamlFile string) {
 
 	log.Infof("Processed %d tracks", validTracks(tracks))
 
-	// pubDate     := updatedDate.AddDate(0, 0, 3)
-
 	dump("tracks@3=", tracks)
+	return
+}
 
+func savePodcast(fp fpodcast.Podcast, tracks []*Track) {
 	log.Infof("Creating %q", defaults.OutputFile)
 	xmlFD, err := os.Create(defaults.OutputFile)
 	if err != nil {
 		log.Fatalf("Cannot create %q: %s", defaults.OutputFile, err)
 	}
 	defer xmlFD.Close()
+
+	// pubDate     := updatedDate.AddDate(0, 0, 3)
 
 	pubDate := createdDate(tracks)
 	lastBuildDate := updatedDate(tracks)
