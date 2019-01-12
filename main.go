@@ -136,7 +136,6 @@ main()
 				normalizeTrack(track *Track)
 				setTrackDefaults(track *Track, lastTrack *Track) bool
 					setCopyright(track *Track, defaults *Default, year int)
-					getCmd(args []string) (cmd *exec.Cmd, err error)
 					getDurationViaExiftool(track *Track, defaults *Default) (durationMilliseconds int64, err error)
 					getDurationViaFfmpeg(track *Track, defaults *Default) (durationMilliseconds int64, err error)
 					getDurationViaFfprobe(track *Track, defaults *Default) (durationMilliseconds int64, err error)
@@ -206,23 +205,6 @@ func setCopyright(track *Track, defaults *Default, year int) {
 	}
 }
 
-// @TODO move to utils.go
-// see https://golang.org/src/os/exec/exec.go#L142
-func getCmd(args []string) (cmd *exec.Cmd, err error) {
-	err = nil
-	name := args[0]
-	cmd = &exec.Cmd{
-		Path: name,
-		Args: args,
-	}
-	if filepath.Base(name) == name {
-		if lp, err := exec.LookPath(name); err == nil {
-			cmd.Path = lp
-		}
-	}
-	return cmd, err
-}
-
 // @TODO move to track.go
 func getDurationViaExiftool(track *Track, defaults *Default) (durationMilliseconds int64, err error) {
 	if defaults.Exiftool == "" {
@@ -230,7 +212,6 @@ func getDurationViaExiftool(track *Track, defaults *Default) (durationMillisecon
 	}
 
 	args := []string{
-		defaults.Exiftool,
 		"-s",
 		"-s",
 		"-s",
@@ -238,12 +219,9 @@ func getDurationViaExiftool(track *Track, defaults *Default) (durationMillisecon
 		track.Filename,
 	}
 
-	cmd, err := getCmd(args)
-	if err != nil {
-		return 0, fmt.Errorf("Command not found: %q: %s", args[0], err)
-	}
-	cmdline := strings.Join(args, " ")
-	log.Debugf("Executing: %s", cmdline)
+	cmd := exec.Command(defaults.Exiftool, args...)
+	cmdline := fmt.Sprintf("%q %s", defaults.Exiftool, args)
+	log.Debugf("Executing: %s %s", cmdline)
 	var bout bytes.Buffer
 	var berr bytes.Buffer
 	cmd.Stdout = &bout
@@ -282,7 +260,6 @@ func getDurationViaFfmpeg(track *Track, defaults *Default) (durationMilliseconds
 	}
 
 	args := []string{
-		defaults.Ffmpeg,
 		"-i",
 		track.Filename,
 		"-f",
@@ -291,11 +268,8 @@ func getDurationViaFfmpeg(track *Track, defaults *Default) (durationMilliseconds
 		"-y",
 	}
 
-	cmd, err := getCmd(args)
-	if err != nil {
-		return 0, fmt.Errorf("Command not found: %q: %s", args[0], err)
-	}
-	cmdline := strings.Join(args, " ")
+	cmd := exec.Command(defaults.Ffmpeg, args...)
+	cmdline := fmt.Sprintf("%q %s", defaults.Ffmpeg, args)
 	log.Debugf("Executing: %s", cmdline)
 	var bout bytes.Buffer
 	var berr bytes.Buffer
@@ -344,7 +318,6 @@ func getDurationViaFfprobe(track *Track, defaults *Default) (durationMillisecond
 	}
 
 	args := []string{
-		defaults.Ffprobe,
 		"-v",
 		"error",
 		"-show_entries",
@@ -354,11 +327,8 @@ func getDurationViaFfprobe(track *Track, defaults *Default) (durationMillisecond
 		track.Filename,
 	}
 
-	cmd, err := getCmd(args)
-	if err != nil {
-		return 0, fmt.Errorf("Command not found: %q: %s", args[0], err)
-	}
-	cmdline := strings.Join(args, " ")
+	cmd := exec.Command(defaults.Ffprobe, args...)
+	cmdline := fmt.Sprintf("%q %s", defaults.Ffprobe, args)
 	log.Debugf("Executing: %s", cmdline)
 	var bout bytes.Buffer
 	var berr bytes.Buffer
