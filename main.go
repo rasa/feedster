@@ -188,17 +188,6 @@ func dump(s string, x interface{}) {
 }
 
 // @TODO move to track.go
-func setCopyright(track *Track, copyright string, copyrightMask string, year int) {
-	if copyright != "" {
-		// track.Copyright := html.EscapeString(copyright)
-		track.Copyright = copyright
-	} else {
-		// track.Copyright = fmt.Sprintf(html.EscapeString(copyrightMask), year, track.Artist)
-		track.Copyright = fmt.Sprintf(copyrightMask, year, track.Artist)
-	}
-}
-
-// @TODO move to track.go
 func getDurationViaExiftool(track *Track, exiftool string) (durationMilliseconds int64, err error) {
 	if exiftool == "" {
 		return 0, fmt.Errorf("exiftool is not set")
@@ -397,7 +386,7 @@ func setTrackDefaults(track *Track, lastTrack *Track) bool {
 		track.Year = strconv.Itoa(year)
 	}
 
-	setCopyright(track, defaults.Copyright, defaults.CopyrightMask, year)
+	track.SetCopyright(defaults.Copyright, defaults.CopyrightMask, year)
 
 	track.DurationMilliseconds, err = getDurationViaExiftool(track, defaults.Exiftool)
 	var err2 error

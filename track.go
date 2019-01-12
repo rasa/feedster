@@ -172,3 +172,14 @@ func (f *Track) NormalizeFilename() {
 	f.OriginalFilename = f.Filename
 	f.Filename = normalizeFilename(f.Filename)
 }
+
+// SetCopyright sets the copyright string
+func (f *Track) SetCopyright(copyright string, copyrightMask string, year int) {
+	if copyright != "" {
+		// f.Copyright := html.EscapeString(copyright)
+		f.Copyright = copyright
+	} else {
+		// f.Copyright = fmt.Sprintf(html.EscapeString(copyrightMask), year, f.Artist)
+		f.Copyright = fmt.Sprintf(copyrightMask, year, f.Artist)
+	}
+}
