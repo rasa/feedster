@@ -6,12 +6,14 @@ package main
 
 import (
 	"bytes"
+	"encoding/csv"
 	"encoding/json"
 	"flag"
 	"fmt"
 	"image"
 	_ "image/jpeg"
 	_ "image/png"
+	"io"
 	"io/ioutil"
 	"mime"
 	"os"
@@ -26,7 +28,7 @@ import (
 
 	fpodcast "github.com/rasa/feedster/podcast"
 	"github.com/rasa/feedster/version"
-	
+
 	"github.com/360EntSecGroup-Skylar/excelize"
 	"github.com/bogem/id3v2"
 	"github.com/eduncan911/podcast"
@@ -113,6 +115,7 @@ var trackFileExtensions = []string{
 	".xlsx",
 	".xls",
 	".csv",
+	".txt",
 }
 
 /*
@@ -820,21 +823,21 @@ func newName(track *Track, defaults *Default) (newName string, err error) {
 		case "t":
 			b, err := strconv.ParseBool(v)
 			if err != nil {
-				log.Warn(err)
+				log.Fatalf("Error parsing rename_mask %v: field: %v: value: %v: %v", defaults.RenameMask, k, v, err)
 				return "", err
 			}
 			s = fmt.Sprintf(format, b)
 		case "b", "c", "d", "o", "q", "x", "X", "U":
 			i, err := strconv.ParseInt(v, 10, 64)
 			if err != nil {
-				log.Warn(err)
+				log.Fatalf("Error parsing rename_mask %v: field: %v: value: %v: %v", defaults.RenameMask, k, v, err)
 				return "", err
 			}
 			s = fmt.Sprintf(format, i)
 		case "e", "E", "f", "F", "g", "G":
 			f, err := strconv.ParseFloat(v, 64)
 			if err != nil {
-				log.Warn(err)
+				log.Fatalf("Error parsing rename_mask %v: field: %v: value: %v: %v", defaults.RenameMask, k, v, err)
 				return "", err
 			}
 			s = fmt.Sprintf(format, f)
@@ -980,9 +983,46 @@ func readCSV(csvFile string) (tracks []*Track) {
 	}
 	defer csvFD.Close()
 
+	gocsv.SetCSVReader(func(in io.Reader) gocsv.CSVReader {
+		r := csv.NewReader(in)
+		r.Comma = ','
+		r.Comment = '#'
+		r.FieldsPerRecord = -1
+		r.LazyQuotes = true
+		r.TrimLeadingSpace = true
+		return r
+	})
+
 	err = gocsv.Unmarshal(csvFD, &tracks)
 	if err != nil { // Load track from file
 		log.Fatalf("Cannot process %q: %s", csvFile, err)
+	}
+
+	return tracks
+}
+
+func readTXT(txtFile string) (tracks []*Track) {
+	log.Infof("Reading %q", txtFile)
+	csvFD, err := os.Open(txtFile)
+	if err != nil {
+		log.Fatalf("Cannot read %q: %s", txtFile, err)
+	}
+	defer csvFD.Close()
+
+	gocsv.SetCSVReader(func(in io.Reader) gocsv.CSVReader {
+		r := csv.NewReader(in)
+		r.Comma = '\t'
+		r.Comment = '#'
+		r.FieldsPerRecord = -1
+		r.LazyQuotes = true
+		// see https://github.com/golang/go/blob/master/src/encoding/csv/reader.go#L134
+		r.TrimLeadingSpace = false
+		return r
+	})
+
+	err = gocsv.Unmarshal(csvFD, &tracks)
+	if err != nil { // Load track from file
+		log.Fatalf("Cannot process %q: %s", txtFile, err)
 	}
 
 	return tracks
@@ -1228,10 +1268,12 @@ func processYAML(yamlFile string) {
 	ext := strings.ToLower(filepath.Ext(tracksFile))
 
 	switch ext {
-	case ".csv":
-		tracks = readCSV(tracksFile)
 	case ".xls", ".xlsx":
 		tracks = readXLS(tracksFile)
+	case ".csv":
+		tracks = readCSV(tracksFile)
+	case ".txt":
+		tracks = readTXT(tracksFile)
 	default:
 		log.Fatalf("Unsupported format for tracks file %q: %q", tracksFile, ext)
 	}
