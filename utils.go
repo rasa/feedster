@@ -1,12 +1,15 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"path"
 	"regexp"
 	"runtime"
+	"strconv"
 	"strings"
 
 	log "github.com/sirupsen/logrus"
@@ -104,6 +107,170 @@ func copyFileContents(src, dst string) (err error) {
 	return
 }
 
+func normalizeDirectory(dir string) string {
+	if runtime.GOOS != "windows" {
+		return dir
+	}
+	return strings.Replace(dir, `\`, "/", -1)
+}
+
+func normalizeFilename(filename string) string {
+	// invalid characters in a filename (Windows, etc)
+	re := regexp.MustCompile(`[<>"|?*/\\:%]+`)
+	return re.ReplaceAllString(filename, "_")
+}
+
+func getDurationViaExiftool(filename string, exiftool string) (durationMilliseconds int64, err error) {
+	if exiftool == "" {
+		return 0, fmt.Errorf("exiftool is not set")
+	}
+
+	args := []string{
+		"-s",
+		"-s",
+		"-s",
+		"-Duration",
+		filename,
+	}
+
+	cmd := exec.Command(exiftool, args...)
+	cmdline := fmt.Sprintf("%q %s", exiftool, args)
+	log.Debugf("Executing: %s", cmdline)
+	var bout bytes.Buffer
+	var berr bytes.Buffer
+	cmd.Stdout = &bout
+	cmd.Stderr = &berr
+	err = cmd.Run()
+	sout := strings.TrimSpace(bout.String())
+	serr := strings.TrimSpace(berr.String())
+	if sout != "" {
+		log.Debugf("stdout=%v", sout)
+	}
+	if serr != "" {
+		log.Debugf("stderr=%v", serr)
+	}
+	if err != nil {
+		return 0, fmt.Errorf("Command failed: %s: %s: %s", cmdline, err, serr)
+	}
+
+	re := regexp.MustCompile(`([\d]+):([\d]+):([\d]+)`)
+	b := re.FindStringSubmatch(sout)
+
+	if len(b) <= 3 {
+		return 0, fmt.Errorf("Command failed: %s: %s: %s", cmdline, "dd:dd:dd not found", sout)
+	}
+	hours, _ := strconv.Atoi(b[1])
+	minutes, _ := strconv.Atoi(b[2])
+	seconds, _ := strconv.Atoi(b[3])
+
+	return int64(1000 * ((hours * 3600) + (minutes * 60) + seconds)), nil
+}
+
+// see https://superuser.com/questions/650291/how-to-get-video-duration-in-seconds
+func getDurationViaFfmpeg(filename string, ffmpeg string) (durationMilliseconds int64, err error) {
+	if ffmpeg == "" {
+		return 0, fmt.Errorf("ffmpeg is not set")
+	}
+
+	args := []string{
+		"-i",
+		filename,
+		"-f",
+		"null",
+		"-",
+		"-y",
+	}
+
+	cmd := exec.Command(ffmpeg, args...)
+	cmdline := fmt.Sprintf("%q %s", ffmpeg, args)
+	log.Debugf("Executing: %s", cmdline)
+	var bout bytes.Buffer
+	var berr bytes.Buffer
+	cmd.Stdout = &bout
+	cmd.Stderr = &berr
+	err = cmd.Run()
+	sout := strings.TrimSpace(bout.String())
+	serr := strings.TrimSpace(berr.String())
+	if sout != "" {
+		log.Debugf("stdout=%v", sout)
+	}
+	if serr != "" {
+		log.Debugf("stderr=%v", serr)
+	}
+	if err != nil {
+		return 0, fmt.Errorf("Command failed: %s: %s: %s", cmdline, err, serr)
+	}
+
+	// ffmpeg outputs on stderr
+	sout = serr
+	re := regexp.MustCompile(` time=([\d]+):([\d]+):([\d]+)`)
+	b := re.FindStringSubmatch(sout)
+
+	if len(b) <= 3 {
+		return 0, fmt.Errorf("Command failed: %s: %s: %s", cmdline, "time= not found", sout)
+	}
+	hours, _ := strconv.Atoi(b[1])
+	minutes, _ := strconv.Atoi(b[2])
+	seconds, _ := strconv.Atoi(b[3])
+	hundredths := int(0)
+
+	re = regexp.MustCompile(` time=[\d]+:[\d]+:[\d]+\.([\d]+)`)
+	b = re.FindStringSubmatch(sout)
+
+	if len(b) == 2 {
+		hundredths, _ = strconv.Atoi(b[1])
+	}
+
+	return int64(1000*((hours*3600)+(minutes*60)+seconds) + (hundredths * 10)), nil
+}
+
+func getDurationViaFfprobe(filename string, ffprobe string) (durationMilliseconds int64, err error) {
+	if ffprobe == "" {
+		return 0, fmt.Errorf("ffprobe is not set")
+	}
+
+	args := []string{
+		"-v",
+		"error",
+		"-show_entries",
+		"format=duration",
+		"-of",
+		"default=noprint_wrappers=1:nokey=1",
+		filename,
+	}
+
+	cmd := exec.Command(ffprobe, args...)
+	cmdline := fmt.Sprintf("%q %s", ffprobe, args)
+	log.Debugf("Executing: %s", cmdline)
+	var bout bytes.Buffer
+	var berr bytes.Buffer
+	cmd.Stdout = &bout
+	cmd.Stderr = &berr
+	err = cmd.Run()
+	sout := strings.TrimSpace(bout.String())
+	serr := strings.TrimSpace(berr.String())
+	if sout != "" {
+		log.Debugf("stdout=%v", sout)
+	}
+	if serr != "" {
+		log.Debugf("stderr=%v", serr)
+	}
+	if err != nil {
+		return 0, fmt.Errorf("Command failed: %s: %s: %s", cmdline, err, serr)
+	}
+
+	re := regexp.MustCompile("[^0-9:.]+")
+
+	seconds, err := strconv.ParseFloat(re.ReplaceAllString(sout, ""), 64)
+	if err != nil {
+		return 0, fmt.Errorf("Command failed: %s: %s: %s", cmdline, "duration not found", sout)
+	}
+	// round up to the next millisecond
+	seconds += 0.000999
+
+	return int64(seconds * 1000), nil
+}
+
 /*
 func findNewestFile(dir string, mask string) (name string, err error) {
 	// inspiration: https://stackoverflow.com/a/45579190
@@ -143,6 +310,7 @@ func findNewestFile(dir string, mask string) (name string, err error) {
 	return "", fmt.Errorf("No files found matching %s", mask)
 }
 */
+
 /*
 func hhmmssToUint64(hhmmss string) (seconds int64) {
 	// there's surely an easier way than this, right?
@@ -156,16 +324,3 @@ func hhmmssToUint64(hhmmss string) (seconds int64) {
 	return int64(hours.Seconds())
 }
 */
-
-func normalizeDirectory(dir string) string {
-	if runtime.GOOS != "windows" {
-		return dir
-	}
-	return strings.Replace(dir, `\`, "/", -1)
-}
-
-func normalizeFilename(filename string) string {
-	// invalid characters in a filename (Windows, etc)
-	re := regexp.MustCompile(`[<>"|?*/\\:%]+`)
-	return re.ReplaceAllString(filename, "_")
-}

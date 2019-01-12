@@ -5,7 +5,6 @@ package main
 // http://id3.org/d3v2.3.0
 
 import (
-	"bytes"
 	"encoding/csv"
 	"encoding/json"
 	"flag"
@@ -17,7 +16,6 @@ import (
 	"io/ioutil"
 	"mime"
 	"os"
-	"os/exec"
 	"path"
 	"path/filepath"
 	"regexp"
@@ -135,9 +133,9 @@ main()
 			preProcessTrack(trackIndex int, track *Track, lastTrack *Track) bool
 				setTrackDefaults(track *Track, lastTrack *Track) bool
 					setCopyright(track *Track, copyright string, copyrightMask string, year int)
-					getDurationViaExiftool(track *Track, exiftool string) (durationMilliseconds int64, err error)
-					getDurationViaFfmpeg(track *Track, ffmpeg string) (durationMilliseconds int64, err error)
-					getDurationViaFfprobe(track *Track, ffprobe string) (durationMilliseconds int64, err error)
+					utils.getDurationViaExiftool(filename string, exiftool string) (durationMilliseconds int64, err error)
+					utils.getDurationViaFfmpeg(filename string, ffmpeg string) (durationMilliseconds int64, err error)
+					utils.getDurationViaFfprobe(filename string, ffprobe string) (durationMilliseconds int64, err error)
 			processTrack(trackIndex int, track *Track, lastTrack *Track, tracks []*Track)
 				setTags(tag *id3v2.Tag, track *Track, tracks []*Track)
 					totalDiscs(tracks []*Track) (totalDiscs int)
@@ -188,160 +186,6 @@ func dump(s string, x interface{}) {
 }
 
 // @TODO move to track.go
-func getDurationViaExiftool(track *Track, exiftool string) (durationMilliseconds int64, err error) {
-	if exiftool == "" {
-		return 0, fmt.Errorf("exiftool is not set")
-	}
-
-	args := []string{
-		"-s",
-		"-s",
-		"-s",
-		"-Duration",
-		track.Filename,
-	}
-
-	cmd := exec.Command(exiftool, args...)
-	cmdline := fmt.Sprintf("%q %s", exiftool, args)
-	log.Debugf("Executing: %s %s", cmdline)
-	var bout bytes.Buffer
-	var berr bytes.Buffer
-	cmd.Stdout = &bout
-	cmd.Stderr = &berr
-	err = cmd.Run()
-	sout := strings.TrimSpace(bout.String())
-	serr := strings.TrimSpace(berr.String())
-	if sout != "" {
-		log.Debugf("stdout=%v", sout)
-	}
-	if serr != "" {
-		log.Debugf("stderr=%v", serr)
-	}
-	if err != nil {
-		return 0, fmt.Errorf("Command failed: %s: %s: %s", cmdline, err, serr)
-	}
-
-	re := regexp.MustCompile(`([\d]+):([\d]+):([\d]+)`)
-	b := re.FindStringSubmatch(sout)
-
-	if len(b) <= 3 {
-		return 0, fmt.Errorf("Command failed: %s: %s: %s", cmdline, "dd:dd:dd not found", sout)
-	}
-	hours, _ := strconv.Atoi(b[1])
-	minutes, _ := strconv.Atoi(b[2])
-	seconds, _ := strconv.Atoi(b[3])
-
-	return int64(1000 * ((hours * 3600) + (minutes * 60) + seconds)), nil
-}
-
-// @TODO move to track.go
-// see https://superuser.com/questions/650291/how-to-get-video-duration-in-seconds
-func getDurationViaFfmpeg(track *Track, ffmpeg string) (durationMilliseconds int64, err error) {
-	if ffmpeg == "" {
-		return 0, fmt.Errorf("ffmpeg is not set")
-	}
-
-	args := []string{
-		"-i",
-		track.Filename,
-		"-f",
-		"null",
-		"-",
-		"-y",
-	}
-
-	cmd := exec.Command(ffmpeg, args...)
-	cmdline := fmt.Sprintf("%q %s", ffmpeg, args)
-	log.Debugf("Executing: %s", cmdline)
-	var bout bytes.Buffer
-	var berr bytes.Buffer
-	cmd.Stdout = &bout
-	cmd.Stderr = &berr
-	err = cmd.Run()
-	sout := strings.TrimSpace(bout.String())
-	serr := strings.TrimSpace(berr.String())
-	if sout != "" {
-		log.Debugf("stdout=%v", sout)
-	}
-	if serr != "" {
-		log.Debugf("stderr=%v", serr)
-	}
-	if err != nil {
-		return 0, fmt.Errorf("Command failed: %s: %s: %s", cmdline, err, serr)
-	}
-
-	// ffmpeg outputs on stderr
-	sout = serr
-	re := regexp.MustCompile(` time=([\d]+):([\d]+):([\d]+)`)
-	b := re.FindStringSubmatch(sout)
-
-	if len(b) <= 3 {
-		return 0, fmt.Errorf("Command failed: %s: %s: %s", cmdline, "time= not found", sout)
-	}
-	hours, _ := strconv.Atoi(b[1])
-	minutes, _ := strconv.Atoi(b[2])
-	seconds, _ := strconv.Atoi(b[3])
-	hundredths := int(0)
-
-	re = regexp.MustCompile(` time=[\d]+:[\d]+:[\d]+\.([\d]+)`)
-	b = re.FindStringSubmatch(sout)
-
-	if len(b) == 2 {
-		hundredths, _ = strconv.Atoi(b[1])
-	}
-
-	return int64(1000*((hours*3600)+(minutes*60)+seconds) + (hundredths * 10)), nil
-}
-
-// @TODO move to track.go
-func getDurationViaFfprobe(track *Track, ffprobe string) (durationMilliseconds int64, err error) {
-	if ffprobe == "" {
-		return 0, fmt.Errorf("ffprobe is not set")
-	}
-
-	args := []string{
-		"-v",
-		"error",
-		"-show_entries",
-		"format=duration",
-		"-of",
-		"default=noprint_wrappers=1:nokey=1",
-		track.Filename,
-	}
-
-	cmd := exec.Command(ffprobe, args...)
-	cmdline := fmt.Sprintf("%q %s", ffprobe, args)
-	log.Debugf("Executing: %s", cmdline)
-	var bout bytes.Buffer
-	var berr bytes.Buffer
-	cmd.Stdout = &bout
-	cmd.Stderr = &berr
-	err = cmd.Run()
-	sout := strings.TrimSpace(bout.String())
-	serr := strings.TrimSpace(berr.String())
-	if sout != "" {
-		log.Debugf("stdout=%v", sout)
-	}
-	if serr != "" {
-		log.Debugf("stderr=%v", serr)
-	}
-	if err != nil {
-		return 0, fmt.Errorf("Command failed: %s: %s: %s", cmdline, err, serr)
-	}
-
-	re := regexp.MustCompile("[^0-9:.]+")
-
-	seconds, err := strconv.ParseFloat(re.ReplaceAllString(sout, ""), 64)
-	if err != nil {
-		return 0, fmt.Errorf("Command failed: %s: %s: %s", cmdline, "duration not found", sout)
-	}
-	// round up to the next millisecond
-	seconds += 0.000999
-
-	return int64(seconds * 1000), nil
-}
-
-// @TODO move to track.go
 func setTrackDefaults(track *Track, lastTrack *Track) bool {
 	if track.Filename == "" {
 		track.Processed = true
@@ -388,14 +232,14 @@ func setTrackDefaults(track *Track, lastTrack *Track) bool {
 
 	track.SetCopyright(defaults.Copyright, defaults.CopyrightMask, year)
 
-	track.DurationMilliseconds, err = getDurationViaExiftool(track, defaults.Exiftool)
+	track.DurationMilliseconds, err = getDurationViaExiftool(track.Filename, defaults.Exiftool)
 	var err2 error
 	if err != nil {
-		track.DurationMilliseconds, err2 = getDurationViaFfprobe(track, defaults.Ffprobe)
+		track.DurationMilliseconds, err2 = getDurationViaFfprobe(track.Filename, defaults.Ffprobe)
 	}
 	var err3 error
 	if err2 != nil {
-		track.DurationMilliseconds, err3 = getDurationViaFfmpeg(track, defaults.Ffmpeg)
+		track.DurationMilliseconds, err3 = getDurationViaFfmpeg(track.Filename, defaults.Ffmpeg)
 	}
 	if err3 != nil {
 		log.Warnf(err.Error())
@@ -560,11 +404,11 @@ func setTags(tag *id3v2.Tag, track *Track, tracks []*Track) {
 		Text:        track.Copyright,
 	}
 	tag.AddCommentFrame(comment)
-	
+
 	if defaults.Image == "" {
 		return
 	}
-	
+
 	pic, err := addFrontCover(defaults.Image)
 	if err == nil && pic != nil {
 		tag.AddAttachedPicture(*pic)
