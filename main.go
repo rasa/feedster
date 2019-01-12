@@ -126,7 +126,7 @@ main()
 		readYAML(yamlFile string) (fp fpodcast.Podcast)
 			loadDefaults(yamlFile string, genFilenames bool)
 			setDefaults(fp *fpodcast.Podcast, defaults *Default)
-			processImage(fp *fpodcast.Podcast, defaults *Default) (err error)
+			processImage(fp *fpodcast.Podcast, imageName string, baseURL string) (err error)
 		getTracksFilename(yamlFile string) (tracksFile string)
 		processTracks(fp fpodcast.Podcast, tracksFile string) (tracks []*Track)
 			readCSV(csvFile string) (tracks []*Track)
@@ -134,7 +134,7 @@ main()
 			readXLS(xlsFile string) (tracks []*Track)
 			preProcessTrack(trackIndex int, track *Track, lastTrack *Track) bool
 				setTrackDefaults(track *Track, lastTrack *Track) bool
-					setCopyright(track *Track, defaults *Default, year int)
+					setCopyright(track *Track, copyright string, copyrightMask string, year int)
 					getDurationViaExiftool(track *Track, exiftool string) (durationMilliseconds int64, err error)
 					getDurationViaFfmpeg(track *Track, ffmpeg string) (durationMilliseconds int64, err error)
 					getDurationViaFfprobe(track *Track, ffprobe string) (durationMilliseconds int64, err error)
@@ -188,13 +188,13 @@ func dump(s string, x interface{}) {
 }
 
 // @TODO move to track.go
-func setCopyright(track *Track, defaults *Default, year int) {
-	if defaults.Copyright != "" {
-		// track.Copyright := html.EscapeString(defaults.Copyright)
-		track.Copyright = defaults.Copyright
+func setCopyright(track *Track, copyright string, copyrightMask string, year int) {
+	if copyright != "" {
+		// track.Copyright := html.EscapeString(copyright)
+		track.Copyright = copyright
 	} else {
-		// track.Copyright = fmt.Sprintf(html.EscapeString(defaults.CopyrightMask), year, track.Artist)
-		track.Copyright = fmt.Sprintf(defaults.CopyrightMask, year, track.Artist)
+		// track.Copyright = fmt.Sprintf(html.EscapeString(copyrightMask), year, track.Artist)
+		track.Copyright = fmt.Sprintf(copyrightMask, year, track.Artist)
 	}
 }
 
@@ -397,7 +397,7 @@ func setTrackDefaults(track *Track, lastTrack *Track) bool {
 		track.Year = strconv.Itoa(year)
 	}
 
-	setCopyright(track, defaults, year)
+	setCopyright(track, defaults.Copyright, defaults.CopyrightMask, year)
 
 	track.DurationMilliseconds, err = getDurationViaExiftool(track, defaults.Exiftool)
 	var err2 error
@@ -880,8 +880,8 @@ func addTrack(p *podcast.Podcast, track *Track, defaults *Default) {
 	}
 }
 
-func processImage(fp *fpodcast.Podcast, defaults *Default) (err error) {
-	if defaults.Image == "" {
+func processImage(fp *fpodcast.Podcast, imageName string, baseURL string) (err error) {
+	if imageName == "" {
 		if fp.Image == nil {
 			return nil
 		}
@@ -890,12 +890,12 @@ func processImage(fp *fpodcast.Podcast, defaults *Default) (err error) {
 		}
 	}
 
-	if defaults.Image != "" {
+	if imageName != "" {
 		if fp.Image == nil {
 			fp.Image = &fpodcast.Image{}
 		}
 		if fp.Image.URL == "" {
-			fp.Image.URL = defaults.BaseURL + defaults.Image
+			fp.Image.URL = baseURL + imageName
 		}
 	}
 
@@ -1216,7 +1216,7 @@ func readYAML(yamlFile string) (fp fpodcast.Podcast) {
 	dump("fp@2=", fp)
 
 	// don't exit on image errors
-	_ = processImage(&fp, defaults)
+	_ = processImage(&fp, defaults.Image, defaults.BaseURL)
 
 	dump("fp@3=", fp)
 	return fp
