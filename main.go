@@ -135,9 +135,9 @@ main()
 			preProcessTrack(trackIndex int, track *Track, lastTrack *Track) bool
 				setTrackDefaults(track *Track, lastTrack *Track) bool
 					setCopyright(track *Track, defaults *Default, year int)
-					getDurationViaExiftool(track *Track, defaults *Default) (durationMilliseconds int64, err error)
-					getDurationViaFfmpeg(track *Track, defaults *Default) (durationMilliseconds int64, err error)
-					getDurationViaFfprobe(track *Track, defaults *Default) (durationMilliseconds int64, err error)
+					getDurationViaExiftool(track *Track, exiftool string) (durationMilliseconds int64, err error)
+					getDurationViaFfmpeg(track *Track, ffmpeg string) (durationMilliseconds int64, err error)
+					getDurationViaFfprobe(track *Track, ffprobe string) (durationMilliseconds int64, err error)
 			processTrack(trackIndex int, track *Track, lastTrack *Track, tracks []*Track)
 				setTags(tag *id3v2.Tag, track *Track, defaults *Default, tracks []*Track)
 					totalDiscs(tracks []*Track) (totalDiscs int)
@@ -199,8 +199,8 @@ func setCopyright(track *Track, defaults *Default, year int) {
 }
 
 // @TODO move to track.go
-func getDurationViaExiftool(track *Track, defaults *Default) (durationMilliseconds int64, err error) {
-	if defaults.Exiftool == "" {
+func getDurationViaExiftool(track *Track, exiftool string) (durationMilliseconds int64, err error) {
+	if exiftool == "" {
 		return 0, fmt.Errorf("exiftool is not set")
 	}
 
@@ -212,8 +212,8 @@ func getDurationViaExiftool(track *Track, defaults *Default) (durationMillisecon
 		track.Filename,
 	}
 
-	cmd := exec.Command(defaults.Exiftool, args...)
-	cmdline := fmt.Sprintf("%q %s", defaults.Exiftool, args)
+	cmd := exec.Command(exiftool, args...)
+	cmdline := fmt.Sprintf("%q %s", exiftool, args)
 	log.Debugf("Executing: %s %s", cmdline)
 	var bout bytes.Buffer
 	var berr bytes.Buffer
@@ -247,8 +247,8 @@ func getDurationViaExiftool(track *Track, defaults *Default) (durationMillisecon
 
 // @TODO move to track.go
 // see https://superuser.com/questions/650291/how-to-get-video-duration-in-seconds
-func getDurationViaFfmpeg(track *Track, defaults *Default) (durationMilliseconds int64, err error) {
-	if defaults.Ffmpeg == "" {
+func getDurationViaFfmpeg(track *Track, ffmpeg string) (durationMilliseconds int64, err error) {
+	if ffmpeg == "" {
 		return 0, fmt.Errorf("ffmpeg is not set")
 	}
 
@@ -261,8 +261,8 @@ func getDurationViaFfmpeg(track *Track, defaults *Default) (durationMilliseconds
 		"-y",
 	}
 
-	cmd := exec.Command(defaults.Ffmpeg, args...)
-	cmdline := fmt.Sprintf("%q %s", defaults.Ffmpeg, args)
+	cmd := exec.Command(ffmpeg, args...)
+	cmdline := fmt.Sprintf("%q %s", ffmpeg, args)
 	log.Debugf("Executing: %s", cmdline)
 	var bout bytes.Buffer
 	var berr bytes.Buffer
@@ -305,8 +305,8 @@ func getDurationViaFfmpeg(track *Track, defaults *Default) (durationMilliseconds
 }
 
 // @TODO move to track.go
-func getDurationViaFfprobe(track *Track, defaults *Default) (durationMilliseconds int64, err error) {
-	if defaults.Ffprobe == "" {
+func getDurationViaFfprobe(track *Track, ffprobe string) (durationMilliseconds int64, err error) {
+	if ffprobe == "" {
 		return 0, fmt.Errorf("ffprobe is not set")
 	}
 
@@ -320,8 +320,8 @@ func getDurationViaFfprobe(track *Track, defaults *Default) (durationMillisecond
 		track.Filename,
 	}
 
-	cmd := exec.Command(defaults.Ffprobe, args...)
-	cmdline := fmt.Sprintf("%q %s", defaults.Ffprobe, args)
+	cmd := exec.Command(ffprobe, args...)
+	cmdline := fmt.Sprintf("%q %s", ffprobe, args)
 	log.Debugf("Executing: %s", cmdline)
 	var bout bytes.Buffer
 	var berr bytes.Buffer
@@ -399,14 +399,14 @@ func setTrackDefaults(track *Track, lastTrack *Track) bool {
 
 	setCopyright(track, defaults, year)
 
-	track.DurationMilliseconds, err = getDurationViaExiftool(track, defaults)
+	track.DurationMilliseconds, err = getDurationViaExiftool(track, defaults.Exiftool)
 	var err2 error
 	if err != nil {
-		track.DurationMilliseconds, err2 = getDurationViaFfprobe(track, defaults)
+		track.DurationMilliseconds, err2 = getDurationViaFfprobe(track, defaults.Ffprobe)
 	}
 	var err3 error
 	if err2 != nil {
-		track.DurationMilliseconds, err3 = getDurationViaFfmpeg(track, defaults)
+		track.DurationMilliseconds, err3 = getDurationViaFfmpeg(track, defaults.Ffmpeg)
 	}
 	if err3 != nil {
 		log.Warnf(err.Error())
