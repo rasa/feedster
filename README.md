@@ -9,7 +9,7 @@
 [![Go Report Card](https://goreportcard.com/badge/github.com/rasa/feedster)](https://goreportcard.com/report/github.com/rasa/feedster "Go Report Card")
 [![MIT License](https://img.shields.io/github/license/rasa/feedster.svg?style=flat-square)](LICENSE "MIT License")
 
-Easily add metadata (id3v2) tags to MP3 files and generate a podcast RSS feed for the Google Play Music, iTunes, Spotify, Stitcher, TuneIn and other podcast directory services.
+Easily add metadata (id3v2) tags to MP3 files and generate a podcast RSS feed for Google Play Music, iTunes, Spotify, Stitcher, TuneIn and other podcast directory services.
 
 <!-- toc -->
 
