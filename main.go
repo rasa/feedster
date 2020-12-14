@@ -777,7 +777,10 @@ func readXLS(xlsFile string) (tracks []*Track) {
 
 	nameToColMap := make(map[int]string)
 
-	rows := xlsx.GetRows(sheetName)
+	rows, err := xlsx.GetRows(sheetName)
+	if err != nil {
+		log.Fatalf("Cannot get rows for sheet %q in %q: %s", sheetName, xlsFile, err)
+	}
 	for i, row := range rows {
 		if i == 0 {
 			for j, colCell := range row {
