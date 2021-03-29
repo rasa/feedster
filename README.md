@@ -1,4 +1,5 @@
 # feedster 
+
 [![feedster logo](https://cdn.pixabay.com/photo/2017/05/18/15/05/chipmunk-2323827__180.jpg)](# "feedster logo")
 
 [![Build Status](https://travis-ci.com/rasa/feedster.svg)](https://travis-ci.com/rasa/feedster "Build status")
@@ -8,6 +9,7 @@
 [![GolangCI](https://golangci.com/badges/github.com/rasa/feedster.svg)](https://golangci.com/r/github.com/rasa/feedster "GolangCI")
 [![Go Report Card](https://goreportcard.com/badge/github.com/rasa/feedster)](https://goreportcard.com/report/github.com/rasa/feedster "Go Report Card")
 [![MIT License](https://img.shields.io/github/license/rasa/feedster.svg?style=flat-square)](LICENSE "MIT License")
+[![Github All Releases](https://img.shields.io/github/downloads/rasa/feedster/total)](https://github.com/rasa/feedster/releases)
 
 Easily add metadata (id3v2) tags to MP3 files and generate a podcast RSS feed for Google Play Music, iTunes, Spotify, Stitcher, TuneIn and other podcast directory services.
 
